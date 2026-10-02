@@ -1,0 +1,41 @@
+name: FortiX CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: TypeScript Compile Check
+      run: npx tsc --noEmit
+      
+    - name: Lint
+      run: npm run lint
+      
+    - name: Unit Tests
+      run: npx vitest run tests/unit/
+      
+    - name: Build Application
+      run: npm run build
+      
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+      
+    - name: Run E2E Security & Resilience Tests
+      run: npx playwright test tests/security tests/failure tests/e2e

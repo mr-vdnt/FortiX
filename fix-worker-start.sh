@@ -1,0 +1,1 @@
+sed -i 's/import { startTrafficSimulator } from ".\/backend\/traffic\/simulator.js";/import { startTrafficSimulator } from ".\/backend\/traffic\/simulator.js";\nimport ".\/src\/experiments\/worker.js";/g' server.ts

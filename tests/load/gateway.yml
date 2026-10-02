@@ -1,0 +1,18 @@
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 10
+      arrivalRate: 50
+      name: Warm up
+    - duration: 30
+      arrivalRate: 200
+      name: Sustained load
+    - duration: 10
+      arrivalRate: 1000
+      name: Spike
+scenarios:
+  - flow:
+      - get:
+          url: "/proxy/dummy-route-id" # We need a valid route id in a real test
+          headers:
+            x-api-key: "dummy-key"

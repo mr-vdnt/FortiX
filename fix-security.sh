@@ -1,0 +1,2 @@
+sed -i '1i import { fetchWithAuth } from "../lib/api.js";\nimport { useEffect, useState } from "react";' src/pages/Security.tsx
+sed -i 's/export default function Security() {/export default function Security() {\n  const [policies, setPolicies] = useState<any[]>([]);\n  useEffect(() => {\n    fetchWithAuth('\''\/api\/control\/policies'\'').then(r => r.json()).then(setPolicies).catch(() => {});\n  }, []);/g' src/pages/Security.tsx

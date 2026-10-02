@@ -1,0 +1,128 @@
+import os
+
+css_content = """@import "tailwindcss";
+
+@theme {
+  --color-base: var(--bg-base);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-card: var(--bg-card);
+  --color-hover: var(--bg-hover);
+  --color-hover-strong: var(--bg-hover-strong);
+  
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  
+  --color-inverted: var(--text-inverted);
+  --color-muted: var(--text-muted);
+  --color-base-text: var(--text-base);
+  --color-strong: var(--text-strong);
+}
+
+@layer base {
+  body {
+    background-color: #f7f5f2;
+    background-image: 
+        radial-gradient(at 15% 15%, rgba(240, 225, 215, 0.9) 0%, transparent 50%), 
+        radial-gradient(at 85% 20%, rgba(215, 230, 240, 0.7) 0%, transparent 50%), 
+        radial-gradient(at 50% 85%, rgba(250, 240, 225, 0.95) 0%, transparent 50%);
+    background-attachment: fixed;
+    background-size: cover;
+  }
+  
+  .dark body {
+    background-color: #0c0b0b;
+    background-image: 
+        radial-gradient(at 15% 15%, rgba(65, 45, 35, 0.4) 0%, transparent 50%), 
+        radial-gradient(at 85% 20%, rgba(35, 55, 65, 0.35) 0%, transparent 50%), 
+        radial-gradient(at 50% 85%, rgba(25, 30, 35, 0.5) 0%, transparent 50%);
+    background-attachment: fixed;
+    background-size: cover;
+  }
+
+  :root {
+    --bg-base: transparent;
+    --bg-surface: rgba(255, 255, 255, 0.45);
+    --bg-elevated: rgba(255, 255, 255, 0.65);
+    --bg-card: rgba(255, 255, 255, 0.5);
+    --bg-hover: rgba(255, 255, 255, 0.8);
+    --bg-hover-strong: rgba(255, 255, 255, 0.95);
+    --border-subtle: rgba(255, 255, 255, 0.4);
+    --border-strong: rgba(255, 255, 255, 0.6);
+    --primary: #F27D26;
+    --primary-hover: #E06C15;
+    --text-inverted: #ffffff;
+    --text-muted: rgba(0, 0, 0, 0.6);
+    --text-base: rgba(0, 0, 0, 0.85);
+    --text-strong: #111827;
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.05);
+    --shadow-glass-elevated: 0 12px 48px 0 rgba(0, 0, 0, 0.08);
+  }
+  
+  .dark {
+    --bg-base: transparent;
+    --bg-surface: rgba(18, 18, 20, 0.35);
+    --bg-elevated: rgba(24, 24, 28, 0.45);
+    --bg-card: rgba(255, 255, 255, 0.03);
+    --bg-hover: rgba(255, 255, 255, 0.08);
+    --bg-hover-strong: rgba(255, 255, 255, 0.12);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.15);
+    --primary: #F27D26;
+    --primary-hover: #E06C15;
+    --text-inverted: #0A0A0B;
+    --text-muted: rgba(255, 255, 255, 0.5);
+    --text-base: rgba(255, 255, 255, 0.85);
+    --text-strong: #ffffff;
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+    --shadow-glass-elevated: 0 12px 48px 0 rgba(0, 0, 0, 0.5);
+  }
+}
+
+@layer utilities {
+  .border-subtle { border-color: var(--border-subtle); }
+  .border-strong { border-color: var(--border-strong); }
+}
+
+/* Glassmorphism System Application */
+.bg-surface, .bg-elevated, .bg-card, .bg-base {
+  backdrop-filter: blur(24px) saturate(130%);
+  -webkit-backdrop-filter: blur(24px) saturate(130%);
+}
+
+.bg-surface, .bg-card {
+  box-shadow: var(--shadow-glass);
+}
+
+.bg-elevated {
+  box-shadow: var(--shadow-glass-elevated);
+}
+
+/* Subtle highlights for physical depth */
+.bg-surface, .bg-elevated, .bg-card {
+  position: relative;
+}
+.bg-surface::before, .bg-elevated::before, .bg-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  mask-image: linear-gradient(135deg, black 0%, transparent 50%);
+  -webkit-mask-image: linear-gradient(135deg, black 0%, transparent 50%);
+}
+.dark .bg-surface::before, .dark .bg-elevated::before, .dark .bg-card::before {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+"""
+
+with open('src/index.css', 'w') as f:
+    f.write(css_content)
+
+print("Updated glassmorphism theme!")

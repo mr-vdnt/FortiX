@@ -1,0 +1,164 @@
+{
+  "projects": [
+    {
+      "id": "proj-1",
+      "name": "Demo Project",
+      "createdAt": "2026-09-02T18:30:37.157Z"
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-1",
+      "projectId": "proj-1",
+      "path": "/api/demo/payment",
+      "targetUrl": "https://httpbin.org/delay/0",
+      "authRequired": true
+    }
+  ],
+  "apiKeys": [
+    {
+      "id": "f4560a5d-dadf-43f2-b517-a61ccefdddf2",
+      "projectId": "proj-1",
+      "name": "Demo Key",
+      "keyHash": "$2b$10$dfzVp3J6EGfcis6V7voeyu4JN5y5qGt9poKDMBdwHrP9chsO37bPm",
+      "createdAt": "2026-09-02T18:44:40.023Z",
+      "revoked": false
+    }
+  ],
+  "rateLimits": [],
+  "policies": [],
+  "experiments": [
+    {
+      "id": "d01c59b8-9b41-41fd-953a-b28395d1d564",
+      "projectId": "proj-1",
+      "routeId": "route-1",
+      "type": "latency",
+      "config": {
+        "latencyMs": 800,
+        "durationMs": 15000
+      },
+      "status": "COMPLETED",
+      "startedAt": "2026-09-02T18:43:34.220Z",
+      "completedAt": "2026-09-02T18:43:51.226Z"
+    },
+    {
+      "id": "97589eb8-a731-49d5-9e05-edbea081244f",
+      "projectId": "proj-1",
+      "routeId": "route-1",
+      "type": "latency",
+      "config": {
+        "latencyMs": 800,
+        "durationMs": 15000
+      },
+      "status": "COMPLETED",
+      "startedAt": "2026-09-02T18:43:35.277Z",
+      "completedAt": "2026-09-02T18:44:08.231Z"
+    },
+    {
+      "id": "90bc6d96-b0f0-4d86-b25c-619c9606e19a",
+      "projectId": "proj-1",
+      "routeId": "route-1",
+      "type": "latency",
+      "config": {
+        "latencyMs": 800,
+        "durationMs": 15000
+      },
+      "status": "COMPLETED",
+      "startedAt": "2026-09-02T18:43:35.782Z",
+      "completedAt": "2026-09-02T18:44:25.234Z"
+    },
+    {
+      "id": "ba18f9ea-bc99-408c-afab-a7546ae1aadf",
+      "projectId": "proj-1",
+      "routeId": "route-1",
+      "type": "latency",
+      "config": {
+        "latencyMs": 800,
+        "durationMs": 15000
+      },
+      "status": "COMPLETED",
+      "startedAt": "2026-09-02T18:43:35.997Z",
+      "completedAt": "2026-09-02T18:44:42.237Z"
+    },
+    {
+      "id": "161dc97f-e6d2-445c-88a5-80535a9500b6",
+      "projectId": "proj-1",
+      "routeId": "route-1",
+      "type": "error_5xx",
+      "config": {
+        "latencyMs": 800,
+        "durationMs": 15000
+      },
+      "status": "COMPLETED",
+      "startedAt": "2026-09-02T18:45:03.570Z",
+      "completedAt": "2026-09-02T18:45:20.574Z"
+    },
+    {
+      "id": "ba5af051-f0f2-4247-b641-b4b1fc37e93a",
+      "projectId": "proj-1",
+      "routeId": "route-1",
+      "type": "latency",
+      "config": {},
+      "status": "QUEUED",
+      "scheduledTime": "2026-09-02T19:15:00.000Z"
+    }
+  ],
+  "metrics": [
+    {
+      "id": "7c7659b9-e025-4f3f-95e0-366059d6a364",
+      "routeId": "route-1",
+      "timestamp": "2026-09-02T19:12:34.940Z",
+      "latencyMs": 63,
+      "status": 200,
+      "error": false
+    },
+    {
+      "id": "fc48f9af-23db-4267-ad8a-915be3dbea0f",
+      "routeId": "route-1",
+      "timestamp": "2026-09-02T19:12:34.940Z",
+      "latencyMs": 47,
+      "status": 200,
+      "error": false
+    },
+    {
+      "id": "aa514983-57e5-4bb5-8e17-5b9ca5ac75d1",
+      "routeId": "route-1",
+      "timestamp": "2026-09-02T19:12:35.939Z",
+      "latencyMs": 56,
+      "status": 200,
+      "error": false
+    },
+    {
+      "id": "e5f128b2-4497-47f2-b18b-093952e6dc22",
+      "routeId": "route-1",
+      "timestamp": "2026-09-02T19:12:36.940Z",
+      "latencyMs": 45,
+      "status": 200,
+      "error": false
+    },
+    {
+      "id": "0225bda1-ac50-4f57-adee-d8cf15d622ec",
+      "routeId": "route-1",
+      "timestamp": "2026-09-02T19:12:36.940Z",
+      "latencyMs": 48,
+      "status": 200,
+      "error": false
+    },
+    {
+      "id": "aae6d320-3e63-4dc2-b3cd-541f752bc4a3",
+      "routeId": "route-1",
+      "timestamp": "2026-09-02T19:12:37.941Z",
+      "latencyMs": 74,
+      "status": 200,
+      "error": false
+    },
+    {
+      "id": "3c0dc39d-e972-4d8f-9457-49dffe91e828",
+      "routeId": "route-1",
+      "timestamp": "2026-09-02T19:12:38.942Z",
+      "latencyMs": 65,
+      "status": 200,
+      "error": false
+    }
+  ]
+}
