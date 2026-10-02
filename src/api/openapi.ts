@@ -948,7 +948,6 @@ export const openApiSpec = {
         }
       }
     },
-,
     '/api/control/settings': {
       get: {
         summary: 'Get Project Settings',
