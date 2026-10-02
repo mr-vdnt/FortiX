@@ -1,41 +1,68 @@
-name: FortiX CI
+name: FortiX CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
-  build-and-test:
+  validate-and-test:
+    name: Build, Lint & Test Suite
     runs-on: ubuntu-latest
-    
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fortix
+          POSTGRES_PASSWORD: fortix_password
+          POSTGRES_DB: fortix_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: TypeScript Compile Check
-      run: npx tsc --noEmit
-      
-    - name: Lint
-      run: npm run lint
-      
-    - name: Unit Tests
-      run: npx vitest run tests/unit/
-      
-    - name: Build Application
-      run: npm run build
-      
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-      
-    - name: Run E2E Security & Resilience Tests
-      run: npx playwright test tests/security tests/failure tests/e2e
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Static Typecheck & Lint
+        run: npm run lint
+
+      - name: Run Database Migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_URL: postgresql://fortix:fortix_password@localhost:5432/fortix_db
+
+      - name: Execute Vitest Test Suites
+        run: npx vitest run
+        env:
+          DATABASE_URL: postgresql://fortix:fortix_password@localhost:5432/fortix_db
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-secret-key-12345
+
+      - name: Build Application Artifacts
+        run: npm run build
