@@ -15,6 +15,13 @@
       "when": 1790198109487,
       "tag": "0001_spicy_jackpot",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790900000000,
+      "tag": "0002_webhook_deliveries",
+      "breakpoints": true
     }
   ]
 }

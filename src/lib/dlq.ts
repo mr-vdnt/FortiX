@@ -349,6 +349,28 @@ export async function getQueueStats(): Promise<{
 }
 
 /**
+ * Helper for testing to retrieve all DLQ records
+ */
+export function getDlqRecords(): DlqJobRecord[] {
+  return Array.from(inMemoryDlqStore.values());
+}
+
+/**
+ * Helper for testing to clear DLQ store for a specific queue
+ */
+export function clearDlqForQueue(queueName?: string): void {
+  if (!queueName) {
+    inMemoryDlqStore.clear();
+    return;
+  }
+  for (const [id, job] of inMemoryDlqStore.entries()) {
+    if (job.queueName.toLowerCase() === queueName.toLowerCase()) {
+      inMemoryDlqStore.delete(id);
+    }
+  }
+}
+
+/**
  * Helper for testing to clear DLQ store
  */
 export function __clearDlqStoreForTests() {

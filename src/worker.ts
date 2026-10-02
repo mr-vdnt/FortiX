@@ -7,6 +7,7 @@ import { sql } from 'drizzle-orm';
 import { registerQueue, recordDlqFailure } from './lib/dlq.js';
 import { logger } from './lib/logger.js';
 import { processTelemetryBatch } from './telemetry-worker.js';
+import { executeWebhookDelivery } from './lib/webhooks.js';
 
 const redisConnection = {
   host: process.env.REDIS_HOST || 'localhost',
@@ -55,6 +56,46 @@ experimentWorker.on('failed', async (job, err) => {
       stacktrace: err?.stack ? [err.stack] : job.stacktrace || [],
       attemptsMade,
       maxAttempts
+    });
+  }
+});
+
+// Dedicated Webhook Redelivery Worker
+const webhookWorker = new Worker('fortix-webhooks', async job => {
+  if (job.name === 'deliver-webhook') {
+    const attempt = (job.attemptsMade || 0) + 1;
+    await executeWebhookDelivery(job.data, attempt);
+  }
+}, { connection: redisConnection as any });
+
+webhookWorker.on('error', (err: any) => {
+  if (err?.message?.includes('ECONNREFUSED')) return;
+  logger.error({ err }, '[BullMQ webhookWorker] Error');
+});
+
+webhookWorker.on('failed', async (job, err) => {
+  if (!job) return;
+  const attemptsMade = job.attemptsMade;
+  const maxAttempts = job.opts?.attempts || 5;
+
+  logger.warn({
+    jobId: job.id,
+    name: job.name,
+    attemptsMade,
+    maxAttempts,
+    err: err?.message,
+  }, '[BullMQ webhookWorker] Webhook delivery attempt failed');
+
+  if (attemptsMade >= maxAttempts) {
+    await recordDlqFailure({
+      jobId: job.id || `wh-job-${Date.now()}`,
+      queueName: 'fortix-webhooks',
+      jobName: job.name,
+      data: job.data,
+      failedReason: err?.message || 'Webhook delivery failed after 5 exponential attempts',
+      stacktrace: err?.stack ? [err.stack] : job.stacktrace || [],
+      attemptsMade,
+      maxAttempts,
     });
   }
 });

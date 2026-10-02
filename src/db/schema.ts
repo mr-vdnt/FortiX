@@ -122,6 +122,28 @@ export const webhooks = pgTable('webhooks', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id: text('id').primaryKey(),
+  webhookId: text('webhook_id').references(() => webhooks.id, { onDelete: 'cascade' }).notNull(),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  eventType: text('event_type').notNull(),
+  payload: jsonb('payload').notNull(),
+  attemptNumber: integer('attempt_number').notNull(),
+  maxAttempts: integer('max_attempts').default(5).notNull(),
+  statusCode: integer('status_code'),
+  responseBody: text('response_body'),
+  errorMessage: text('error_message'),
+  latencyMs: integer('latency_ms'),
+  success: boolean('success').notNull(),
+  signature: text('signature'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    webhookDeliveryWebhookIdx: index('webhook_delivery_webhook_idx').on(table.webhookId, table.createdAt),
+    webhookDeliveryProjectIdx: index('webhook_delivery_project_idx').on(table.projectId, table.createdAt),
+  };
+});
+
 export const projectSettings = pgTable('project_settings', {
   id: text('id').primaryKey(),
   projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull().unique(),
