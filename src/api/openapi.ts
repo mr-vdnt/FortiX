@@ -883,18 +883,72 @@ export const openApiSpec = {
     },
     '/api/control/resources': {
       get: {
-        summary: 'Get Gateway Node Resource Telemetry',
-        tags: ['System'],
+        summary: 'Get Tenant-Scoped Dynamic Telemetry Topology',
+        tags: ['Observability'],
         security: [{ BearerAuth: [] }],
         parameters: [
-          { name: 'projectId', in: 'query', required: true, schema: { type: 'string', format: 'uuid' } }
+          {
+            name: 'projectId',
+            in: 'query',
+            required: true,
+            schema: { type: 'string', minLength: 1 }
+          }
         ],
         responses: {
-          '200': { description: 'Memory, CPU, heap metrics time-series' },
-          '403': { description: 'Entitlement TOPOLOGY required' }
+          '200': {
+            description: 'Current topology graph and live resource telemetry for the authorized project',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['schemaVersion', 'generatedAt', 'projectId', 'nodes', 'edges', 'activeExperiments', 'telemetryHistory'],
+                  properties: {
+                    schemaVersion: { type: 'integer', example: 1 },
+                    generatedAt: { type: 'string', format: 'date-time' },
+                    projectId: { type: 'string' },
+                    nodes: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        required: ['id', 'type', 'label', 'status'],
+                        properties: {
+                          id: { type: 'string' },
+                          type: { type: 'string', enum: ['client', 'gateway', 'route', 'worker', 'redis', 'postgres'] },
+                          label: { type: 'string' },
+                          status: { type: 'string', enum: ['healthy', 'degraded', 'error'] },
+                          metadata: { type: 'object', additionalProperties: true }
+                        }
+                      }
+                    },
+                    edges: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        required: ['id', 'source', 'target', 'relation', 'status'],
+                        properties: {
+                          id: { type: 'string' },
+                          source: { type: 'string' },
+                          target: { type: 'string' },
+                          relation: { type: 'string', enum: ['request', 'telemetry', 'persistence'] },
+                          status: { type: 'string', enum: ['healthy', 'degraded', 'error'] }
+                        }
+                      }
+                    },
+                    activeExperiments: { type: 'array', items: { type: 'object' } },
+                    telemetry: { type: 'object', nullable: true },
+                    telemetryHistory: { type: 'array', items: { type: 'object' } }
+                  }
+                }
+              }
+            }
+          },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'TOPOLOGY entitlement or project ownership required' },
+          '500': { description: 'Failed to collect topology telemetry' }
         }
       }
     },
+,
     '/api/control/settings': {
       get: {
         summary: 'Get Project Settings',
