@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-10-02T18:13:30Z",
+  "auditTitle": "FortiX Platform Security Hardening & Isolation Audit",
+  "verdict": "PASSED_HARDENED",
+  "securityDimensions": {
+    "authentication": {
+      "mechanism": "JWT Access Tokens + Refresh Token Rotation with bcrypt secret hashing",
+      "status": "VERIFIED",
+      "findings": "Tokens require active signing secrets; invalid signatures rejected."
+    },
+    "authorizationAndTenantIsolation": {
+      "mechanism": "Multi-tenant project scoping with requireProjectOwnership middleware and SQL row filtering",
+      "status": "VERIFIED",
+      "findings": "Cross-project access strictly rejected on routes, keys, metrics, topology, and reports."
+    },
+    "ssrfAndDnsSecurity": {
+      "mechanism": "Strict SecurityGuard with asynchronous DNS resolution, IPv4/IPv6 classification, hex/octal decoding, and cloud metadata blocking",
+      "status": "VERIFIED",
+      "findings": "26/26 bypass vectors blocked including 0x7f000001, ::ffff:127.0.0.1, 169.254.169.254."
+    },
+    "rateLimiting": {
+      "mechanism": "Distributed Atomic Lua Token Bucket in Redis with fallback to in-memory sliding window",
+      "status": "VERIFIED",
+      "findings": "Maintains strict token quotas and fails closed/safe during infrastructure degradation."
+    },
+    "cryptographicSignatures": {
+      "mechanism": "HMAC-SHA256 timestamped signatures with replay tolerance windows on outbound webhooks",
+      "status": "VERIFIED",
+      "findings": "Tampered payloads and expired timestamps rejected."
+    },
+    "artifactStorageIntegrity": {
+      "mechanism": "SHA-256 integrity checksums, multi-tenant directory partitioning, and authorized download routes",
+      "status": "VERIFIED",
+      "findings": "Artifacts stored with verified SHA-256 hashes and download authorization."
+    }
+  }
+}

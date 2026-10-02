@@ -17,7 +17,8 @@ import {
   keyRevocationEventSchema, 
   publishKeyRevocation, 
   setupKeyRevocationSubscriber,
-  closeKeyRevocationClients 
+  closeKeyRevocationClients,
+  getPublisher
 } from '../src/lib/key-invalidation.js';
 
 dotenv.config();
@@ -206,15 +207,14 @@ describe('Gate 3.5 - Distributed API-Key Cache Invalidation (Redis Pub/Sub)', ()
   });
 
   it('5. Subscriber Resilience: subscriber recovers cleanly and handles malformed messages without throwing', async () => {
-    const rawRedis = new Redis('redis://127.0.0.1:6379');
+    const pub = getPublisher();
     
     // Publish a completely invalid non-JSON string
-    await rawRedis.publish(REDIS_KEY_REVOCATION_CHANNEL, 'NOT_JSON_DATA');
+    await pub.publish(REDIS_KEY_REVOCATION_CHANNEL, 'NOT_JSON_DATA');
     // Publish a JSON string that does not match schema
-    await rawRedis.publish(REDIS_KEY_REVOCATION_CHANNEL, JSON.stringify({ wrong: 'schema' }));
+    await pub.publish(REDIS_KEY_REVOCATION_CHANNEL, JSON.stringify({ wrong: 'schema' }));
     
     await new Promise(r => setTimeout(r, 50));
-    await rawRedis.quit();
     
     // Gateway remains fully operational
     const res = await request(gatewayA).get(`/proxy/${routeId}`);

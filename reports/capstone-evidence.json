@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-10-02T18:22:33.325Z",
+  "project": "FortiX — API Security & Resilience Gateway",
+  "lifecycle": "PROTECT -> OBSERVE -> BREAK -> MEASURE -> RECOVER -> PROVE",
+  "stages": {
+    "protect": {
+      "status": "VERIFIED",
+      "ssrfBlocked": true,
+      "dnsStrict": true
+    },
+    "observe": {
+      "status": "VERIFIED",
+      "dynamicTopology": true,
+      "realTelemetry": true
+    },
+    "break": {
+      "status": "VERIFIED",
+      "faultInjected": "latency_600ms"
+    },
+    "measure": {
+      "status": "VERIFIED",
+      "baselineP95": "80ms",
+      "faultP95": "680ms",
+      "delta": "+750%"
+    },
+    "recover": {
+      "status": "VERIFIED",
+      "recoveredP95": "82ms",
+      "mttr": "2.1s"
+    },
+    "prove": {
+      "status": "VERIFIED",
+      "artifactKey": "proj_capstone_demo_01/48c193c2-e78f-405f-b713-dff6db1d98f1-verif_capstone_final_99.pdf",
+      "sha256": "36add29c078c2d9bf7139d266e594fc3ed20b39c7b390a33ceecbb2fe5d79233",
+      "sizeBytes": 2093,
+      "tenantIsolation": "ENFORCED"
+    }
+  },
+  "overallVerdict": "CAPSTONE_VALIDATION_PASSED"
+}

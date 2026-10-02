@@ -31,7 +31,7 @@ export interface QueueHealthStats {
 }
 
 // In-memory persistent registry for DLQ records to ensure reliability across runtime modes (Real Redis / Mock)
-const inMemoryDlqStore = new Map<string, DlqJobRecord>();
+export const inMemoryDlqStore = new Map<string, DlqJobRecord>();
 
 // Known BullMQ Queues
 const registeredQueues = new Map<string, Queue>();

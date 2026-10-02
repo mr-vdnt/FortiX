@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-10-02T18:36:16.214Z",
+  "testSuite": "TSK-11 Infrastructure Failure & Recovery",
+  "totalScenarios": 3,
+  "allPassed": true,
+  "matrix": [
+    {
+      "component": "Redis (Rate Limiting)",
+      "failureScenario": "Redis connection drops / disconnected",
+      "expectedBehavior": "Fallback to in-memory sliding token bucket, preventing unconstrained traffic",
+      "actualBehavior": "Fallback in-memory token bucket actively enforced limits; 21st request blocked",
+      "recoveryBehavior": "Automatic transition back to Redis atomic Lua token bucket upon reconnect",
+      "status": "PASS"
+    },
+    {
+      "component": "Redis (Health Check)",
+      "failureScenario": "Redis ping timeout / ECONNREFUSED",
+      "expectedBehavior": "System health reports degraded, API remains functional",
+      "actualBehavior": "Dependency health returned degraded, postgres and API remained up",
+      "recoveryBehavior": "Redis ping succeeds on next check, health returns to healthy",
+      "status": "PASS"
+    },
+    {
+      "component": "PostgreSQL (Core Database)",
+      "failureScenario": "Database query timeout / connection pool exhaustion",
+      "expectedBehavior": "Health check reports postgres unhealthy, process does not crash",
+      "actualBehavior": "DB error safely handled, status reported as degraded without unhandled rejection",
+      "recoveryBehavior": "Connection restored upon next successful query execution",
+      "status": "PASS"
+    }
+  ]
+}

@@ -28,11 +28,22 @@ export async function getDependenciesHealth() {
   try {
     await Promise.race([
       db.execute(sql`SELECT 1`),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('DB Query Timeout')), 500))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('DB Query Timeout')), 3500))
     ]);
     dbLatencyMs = Date.now() - dbStart;
   } catch (err) {
-    dbStatus = 'unhealthy';
+    // Retry once in case of cold connection TLS handshake
+    try {
+      const retryStart = Date.now();
+      await Promise.race([
+        db.execute(sql`SELECT 1`),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('DB Query Retry Timeout')), 3000))
+      ]);
+      dbLatencyMs = Date.now() - retryStart;
+      dbStatus = 'healthy';
+    } catch (retryErr) {
+      dbStatus = 'unhealthy';
+    }
   }
 
   const redisStart = Date.now();
@@ -42,7 +53,7 @@ export async function getDependenciesHealth() {
     } else {
       await Promise.race([
         redisConnection.ping(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis Ping Timeout')), 500))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Redis Ping Timeout')), 2500))
       ]);
       redisLatencyMs = Date.now() - redisStart;
     }

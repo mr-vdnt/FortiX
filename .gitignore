@@ -33,3 +33,6 @@ dist-ssr
 
 # Vite output
 /dist
+
+# Local artifact storage
+/storage

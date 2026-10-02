@@ -17,6 +17,7 @@ export interface WebhookJobData {
   secret?: string | null;
   eventType: string;
   payload: Record<string, any>;
+  attemptNumber?: number;
   maxAttempts?: number;
 }
 

@@ -44,7 +44,10 @@ let isSubscriberInitialized = false;
 export function getPublisher(): Redis {
   if (!publisherClient) {
     if (!isRedisDaemonRunning && process.env.USE_REAL_REDIS !== 'true') {
-      publisherClient = sharedRedisMock as any;
+      publisherClient = (sharedRedisMock as any).createConnectedClient 
+        ? (sharedRedisMock as any).createConnectedClient() 
+        : new (sharedRedisMock.constructor as any)();
+      (publisherClient as any).status = 'ready';
       return publisherClient;
     }
 

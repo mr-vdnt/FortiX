@@ -13,6 +13,7 @@ import { verificationsRouter } from './verifications.js';
 import { eventsRouter } from './events.js';
 import { webhooksRouter } from './webhooks.js';
 import { resourcesRouter } from './resources.js';
+import { topologyRouter } from './topology.js';
 import { settingsRouter } from './settings.js';
 import { systemRouter, getDependenciesHealth } from './system.js';
 import { dlqRouter } from './dlq.js';
@@ -126,6 +127,7 @@ export function setupApiRoutes(app: Express) {
   app.use('/api/control/events', authenticate, eventsRouter);
   app.use('/api/control/webhooks', authenticate, requireEntitlement('ADVANCED_SECURITY'), webhooksRouter);
   app.use('/api/control/resources', authenticate, requireEntitlement('TOPOLOGY'), resourcesRouter);
+  app.use('/api/control/topology', authenticate, requireEntitlement('TOPOLOGY'), topologyRouter);
   app.use('/api/control/dlq', authenticate, dlqRouter);
   app.use('/api/control/queue', authenticate, dlqRouter);
   app.use('/api', reportsRouter);

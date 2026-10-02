@@ -25,7 +25,7 @@ interface SocketContextValue {
   pingServer: () => void;
 }
 
-const SocketContext = createContext<SocketContextValue | null>(null);
+export const SocketContext = createContext<SocketContextValue | null>(null);
 
 export function SocketProvider({ children, projectId }: { children: React.ReactNode; projectId?: string }) {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -69,7 +69,7 @@ export function SocketProvider({ children, projectId }: { children: React.ReactN
 
     const s = io(window.location.origin, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
