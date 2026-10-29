@@ -19,6 +19,8 @@
     "demo-api": "tsx demo-api.ts",
     "worker": "tsx src/worker.ts",
     "setup:local": "node scripts/setup-local.js",
+    "db:backup-drill": "tsx scripts/backup-restore-drill.ts",
+    "test": "mkdir -p test-results && vitest run --reporter=default --reporter=json --outputFile=test-results/vitest-summary.json",
     "test:security": "playwright test tests/security",
     "test:e2e": "playwright test tests/e2e"
   },

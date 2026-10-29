@@ -1,11 +1,14 @@
 import { Express } from 'express';
 import cookieParser from 'cookie-parser';
-import { accountRouter } from "./account.js";
-import { authRouter } from "./auth.js";
+import { accountRouter } from './account.js';
+import { authRouter } from './auth.js';
 import { adminRouter } from './admin.js';
+import { demoWorkspaceRouter } from './demo-workspace.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { requireEntitlement } from '../middleware/entitlements.js';
 import { csrfProtectionMiddleware } from '../lib/cors-csrf.js';
+import { evaluateReadinessContract } from '../lib/readiness.js';
+import { apiGlobalErrorHandler } from '../lib/error-tracker.js';
 import { projectsRouter } from './projects.js';
 import { apiRoutesRouter } from './routes.js';
 import { apiKeysRouter } from './keys.js';
@@ -24,9 +27,6 @@ import reportsRouter from './reports.js';
 import { workflowRunsRouter } from './runs.js';
 import { openApiRouter, getSwaggerHtml } from './openapi.js';
 import { register, httpRequestsTotal, httpRequestDurationSeconds } from '../lib/metrics.js';
-import { db } from '../db/index.js';
-import { redisConnection } from '../redis.js';
-import { sql } from 'drizzle-orm';
 import pinoHttp from 'pino-http';
 import { logger } from '../lib/logger.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -61,13 +61,16 @@ export function setupApiRoutes(app: Express) {
       httpRequestsTotal.inc({
         method: req.method,
         route: routePath,
-        status_code: res.statusCode.toString()
+        status_code: res.statusCode.toString(),
       });
-      httpRequestDurationSeconds.observe({
-        method: req.method,
-        route: routePath,
-        status_code: res.statusCode.toString()
-      }, durationInSeconds);
+      httpRequestDurationSeconds.observe(
+        {
+          method: req.method,
+          route: routePath,
+          status_code: res.statusCode.toString(),
+        },
+        durationInSeconds
+      );
     });
     next();
   });
@@ -82,41 +85,39 @@ export function setupApiRoutes(app: Express) {
   });
 
   // Health Checks
-  app.get('/api/health', async (req, res) => {
+  app.get('/api/health', async (_req, res) => {
     const health = await getDependenciesHealth();
     res.status(200).json(health);
   });
 
-  app.get('/api/health/live', (req, res) => {
+  app.get('/api/health/live', (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  app.get('/api/health/ready', async (req, res) => {
+  app.get('/api/health/ready', async (_req, res) => {
     const health = await getDependenciesHealth();
-    const strictDb = process.env.STRICT_PERSISTENT_DB === 'true';
-    const strictRedis = process.env.STRICT_REDIS_READINESS === 'true';
-    const isPostgresReady =
-      health.postgres.status === 'healthy' &&
-      (!strictDb || health.postgres.storageMode === 'persistent');
-    const isRedisReady = !strictRedis || health.redis.status === 'healthy';
-    const isReady = isPostgresReady && isRedisReady;
+    const evaluation = evaluateReadinessContract(health);
 
-    res.status(isReady ? 200 : 503).json({
-      status: isReady && health.status === 'healthy' ? 'ok' : isReady ? 'degraded' : 'unhealthy',
+    res.status(evaluation.httpStatus).json({
+      status: evaluation.status,
+      deploymentMode: evaluation.deploymentMode,
+      persistenceVerified: evaluation.persistenceVerified,
       postgres: health.postgres.status,
       postgresStorageMode: health.postgres.storageMode,
+      postgresMigrationStatus: health.postgres.migrationStatus || 'verified',
       redis: health.redis.status,
       redisStorageMode: health.redis.storageMode,
+      warnings: evaluation.warnings,
     });
   });
 
-  app.get('/api/health/dependencies', async (req, res) => {
+  app.get('/api/health/dependencies', async (_req, res) => {
     const health = await getDependenciesHealth();
     res.status(200).json(health);
   });
 
   // Prometheus Metrics Exposition
-  app.get('/metrics', async (req, res) => {
+  app.get('/metrics', async (_req, res) => {
     try {
       res.setHeader('Content-Type', register.contentType);
       res.send(await register.metrics());
@@ -127,22 +128,23 @@ export function setupApiRoutes(app: Express) {
 
   // OpenAPI 3 Specification & Interactive Docs
   app.use('/api', openApiRouter);
-  app.get('/api-docs', (req, res) => {
+  app.get('/api-docs', (_req, res) => {
     res.setHeader('Content-Type', 'text/html');
     res.send(getSwaggerHtml('/api/openapi.json'));
   });
-  app.get('/api/docs', (req, res) => {
+  app.get('/api/docs', (_req, res) => {
     res.setHeader('Content-Type', 'text/html');
     res.send(getSwaggerHtml('/api/openapi.json'));
   });
 
-  // Public
-  app.use("/api/auth", authRouter);
-  app.use("/api/control/account", authenticate, accountRouter);
+  // Public Auth
+  app.use('/api/auth', authRouter);
+  app.use('/api/control/account', authenticate, accountRouter);
 
   // Protected Control Plane
   app.use('/api/control/system', systemRouter);
   app.use('/api/control/settings', authenticate, settingsRouter);
+  app.use('/api/control/projects/demo-workspace', authenticate, demoWorkspaceRouter);
   app.use('/api/control/projects', authenticate, projectsRouter);
   app.use('/api/control/routes', authenticate, apiRoutesRouter);
   app.use('/api/control/keys', authenticate, apiKeysRouter);
@@ -167,6 +169,10 @@ export function setupApiRoutes(app: Express) {
       code: 'API_ROUTE_NOT_FOUND',
       path: req.originalUrl,
       requestId: req.id,
+      recoveryHint: 'Verify the API endpoint path or consult /api/docs for supported routes.',
     });
   });
+
+  // Global scrubbed API error handler (never leaks stack traces or raw SQL)
+  app.use('/api', apiGlobalErrorHandler as any);
 }

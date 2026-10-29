@@ -43,3 +43,7 @@ dump.rdb
 
 # Ephemeral chat attachments
 public/assets/aistudio/
+
+# Test output traces (keep verified Vitest summary artifact)
+test-results/*
+!test-results/vitest-summary.json

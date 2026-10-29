@@ -5,6 +5,7 @@ import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { AuthRequest } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';
+import { exportWorkspaceBackup, verifyWorkspaceBackupIntegrity } from '../db/backup.js';
 
 const router = express.Router();
 
@@ -76,6 +77,36 @@ router.patch('/users/:id/role', async (req: AuthRequest, res) => {
     }
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// GET /api/control/admin/backups/export?projectId=<uuid>
+router.get('/backups/export', async (req: AuthRequest, res) => {
+  try {
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId.trim() : '';
+    if (!projectId) {
+      return res.status(400).json({ error: 'projectId query parameter is required' });
+    }
+    const backup = await exportWorkspaceBackup(projectId);
+    logger.info(
+      { actorUserId: req.user?.id, projectId, checksumSha256: backup.checksumSha256 },
+      '[AdminBackup] Workspace snapshot exported'
+    );
+    res.json(backup);
+  } catch (err: any) {
+    if (String(err?.message || '').includes('not found')) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.status(500).json({ error: 'Failed to export workspace backup' });
+  }
+});
+
+// POST /api/control/admin/backups/verify
+router.post('/backups/verify', async (req: AuthRequest, res) => {
+  const result = verifyWorkspaceBackupIntegrity(req.body);
+  if (!result.valid) {
+    return res.status(400).json({ valid: false, reason: result.reason });
+  }
+  res.json({ valid: true, checksumSha256: req.body.checksumSha256 });
 });
 
 export const adminRouter = router;

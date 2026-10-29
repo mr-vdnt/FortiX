@@ -156,6 +156,9 @@ let lastRedisConnectionError: string | null = null;
 let lastRedisWarnAt = 0;
 
 export function getLastRedisError(): string | null {
+  if (!isRealRedisActive && process.env.STRICT_REDIS_READINESS === 'true') {
+    return 'STRICT_REDIS_READINESS=true requires a persistent Redis connection; in-memory fallback is prohibited.';
+  }
   return lastRedisConnectionError;
 }
 

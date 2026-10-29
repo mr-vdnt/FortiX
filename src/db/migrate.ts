@@ -240,8 +240,10 @@ export async function runMigrations(customDbUrl?: string, customMigrationsFolder
 
     console.log('[Migration] All database migrations verified and applied successfully.');
   } catch (error) {
+    const isRemoteConfigured = !isLocal && Boolean(connectionString) && !connectionString.includes('memory');
     const isStrict =
       strictPersistent ||
+      isRemoteConfigured ||
       process.env.NODE_ENV === 'production';
     if (isStrict) {
       console.error('[Migration] Migration execution failed:', error instanceof Error ? error.message : error);

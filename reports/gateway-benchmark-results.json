@@ -1,51 +1,51 @@
 {
-  "timestamp": "2026-10-29T12:47:38.944Z",
+  "timestamp": "2026-10-29T15:29:09.625Z",
   "directUpstream": {
     "benchmarkName": "Direct Upstream (Baseline)",
-    "targetUrl": "http://127.0.0.1:16577",
+    "targetUrl": "http://127.0.0.1:54474",
     "concurrency": 5,
     "totalRequests": 50,
     "successfulRequests": 50,
     "failedRequests": 0,
-    "durationSeconds": 0.028,
-    "throughputRps": 1810.5,
+    "durationSeconds": 0.029,
+    "throughputRps": 1731.8,
     "latencies": {
-      "min": 0.632805,
-      "max": 11.424961,
-      "mean": 2.72,
-      "p50": 1,
+      "min": 0.254056,
+      "max": 14.095517,
+      "mean": 2.78,
+      "p50": 2,
       "p90": 6,
-      "p95": 8,
-      "p99": 10
+      "p95": 13,
+      "p99": 14
     },
     "statusCodes": {
       "200": 50
     },
     "errorRatePercent": 0,
     "resourceUsage": {
-      "startHeapMb": 15.8,
-      "endHeapMb": 13.4,
-      "heapDeltaMb": -2.3
+      "startHeapMb": 15.7,
+      "endHeapMb": 13.5,
+      "heapDeltaMb": -2.2
     },
-    "timestamp": "2026-10-29T12:47:38.834Z"
+    "timestamp": "2026-10-29T15:29:09.518Z"
   },
   "gatewayProtected": {
     "benchmarkName": "FortiX Gateway Protected Proxy",
-    "targetUrl": "http://127.0.0.1:22335",
+    "targetUrl": "http://127.0.0.1:18383",
     "concurrency": 5,
     "totalRequests": 50,
     "successfulRequests": 50,
     "failedRequests": 0,
-    "durationSeconds": 0.046,
-    "throughputRps": 1090.4,
+    "durationSeconds": 0.042,
+    "throughputRps": 1199.6,
     "latencies": {
-      "min": 3.082152,
-      "max": 5.59313,
-      "mean": 4.47,
+      "min": 3.017249,
+      "max": 5.212469,
+      "mean": 4.13,
       "p50": 4,
       "p90": 5,
-      "p95": 6,
-      "p99": 6
+      "p95": 5,
+      "p99": 5
     },
     "statusCodes": {
       "200": 50
@@ -56,13 +56,13 @@
       "endHeapMb": 15.5,
       "heapDeltaMb": 2
     },
-    "timestamp": "2026-10-29T12:47:38.944Z"
+    "timestamp": "2026-10-29T15:29:09.625Z"
   },
   "gatewayOverheadMs": {
-    "p50Delta": 3,
-    "p95Delta": -2,
-    "p99Delta": -4,
-    "meanDelta": 1.75
+    "p50Delta": 2,
+    "p95Delta": -8,
+    "p99Delta": -9,
+    "meanDelta": 1.35
   },
   "targetOverheadSlaMet": true
 }

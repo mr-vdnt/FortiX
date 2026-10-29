@@ -216,3 +216,112 @@
 - **Regression Test**: `tests/unit/security-redteam-regressions.test.ts` (`FX-SEC-012`), `tests/unit/migrations.test.ts`
 - **Validation Result**: Passed.
 - **Remaining Risk**: PostgreSQL RLS policies enforce `app.current_user_id` when connected via a non-superuser role (`NOBYPASSRLS`) with per-transaction `SET LOCAL app.current_user_id`; application-layer `requireProjectOwnership` remains mandatory primary enforcement.
+
+---
+
+## FX-REL-013 — Readiness Endpoint Masking Ephemeral Fallback as `"ok"` & Unenforced `STRICT_REDIS_READINESS`
+- **Severity**: High
+- **Status**: `FIXED AND VERIFIED`
+- **Affected Component**: `src/lib/readiness.ts`, `src/db/index.ts`, `src/db/init.ts`, `src/db/migrate.ts`, `src/redis.ts`, `src/api/system.ts`, `src/api/index.ts`, `server.ts`
+- **Reproduction Steps**:
+  1. Start FortiX without external PostgreSQL/Redis (`pg-mem` + `ioredis-mock`) and call `GET /api/health/ready` -> returned HTTP `200 { status: "ok", postgresStorageMode: "in-memory", redisStorageMode: "in-memory" }`.
+  2. Set `STRICT_REDIS_READINESS=true` without external Redis -> `ioredis-mock` reported `status === 'ready'`, bypassing readiness failure.
+  3. Configure an unreachable remote `DATABASE_URL` without `STRICT_PERSISTENT_DB=true` -> silently fell back to `pg-mem` instead of failing closed.
+- **Root Cause**: Readiness evaluated `status === 'healthy'` on mock/in-memory drivers identically to durable PostgreSQL/Redis connections and lacked explicit `persistenceVerified` / `deploymentMode` contracts.
+- **Security / Functional Impact**: Operators and load balancers could mistake an ephemeral single-container sandbox for a durable, persistent production deployment, risking silent data loss across container restarts.
+- **Fix Applied**: Implemented `evaluateReadinessContract()` (`src/lib/readiness.ts`) and wired it into `/api/health/ready`, `/health/ready`, and `/api/control/system/health`; failed closed (`503 unhealthy`) whenever `STRICT_PERSISTENT_DB=true`, `STRICT_REDIS_READINESS=true`, failed migrations, or an explicit remote `DATABASE_URL` / `REDIS_URL` is configured without live persistent storage; explicitly reported `status: 'ephemeral_ready'`, `deploymentMode: 'ephemeral-sandbox'`, `persistenceVerified: false`, and actionable `warnings` in zero-config sandbox previews.
+- **Regression Test**: `tests/unit/audit-remediation-phase2.test.ts` (`FX-REL-013`)
+- **Validation Result**: Passed.
+- **Remaining Risk**: Zero-config preview environments without external `DATABASE_URL`/`REDIS_URL` intentionally operate in clearly labelled `ephemeral-sandbox` mode.
+
+---
+
+## FX-SEC-014 — Browser Login Response Returning Raw Bearer JWT Alongside `HttpOnly` Session Cookie
+- **Severity**: Medium
+- **Status**: `FIXED AND VERIFIED`
+- **Affected Component**: `src/api/auth.ts`, `src/components/Login.tsx`
+- **Reproduction Steps**:
+  1. Authenticate from the web UI (`POST /api/auth/login`) and inspect the JSON response payload -> contained `token: "eyJ..."` in addition to the `HttpOnly` `fortix_session` cookie.
+- **Root Cause**: Shared login handler returned `token` unconditionally for both browser sessions and CLI/SDK clients.
+- **Security / Functional Impact**: Unnecessary exposure of raw session JWTs in browser network response bodies when `HttpOnly` cookie sessions are active.
+- **Fix Applied**: Sent `X-Fortix-Client: browser` from `Login.tsx` and omitted `token` from browser JSON responses in `src/api/auth.ts` (`sessionMode: 'httpOnly-cookie'`), retaining `token` strictly for non-browser programmatic clients.
+- **Regression Test**: `tests/unit/audit-remediation-phase2.test.ts` (`FX-SEC-014`)
+- **Validation Result**: Passed (`res.body.token === undefined` on browser login; cookie session verified on `/api/auth/me`).
+- **Remaining Risk**: None for browser sessions; CLI/SDK bearer tokens remain subject to server-side revocation and 24h expiry.
+
+---
+
+## FX-INT-015 — Hardcoded Test Counts (`57/57`), Synthetic Score Fallbacks (`85/90`), Swallowed UI Errors, & Sandbox-Blocked `window.confirm`
+- **Severity**: Medium
+- **Status**: `FIXED AND VERIFIED`
+- **Affected Component**: `src/api/system.ts`, `src/pages/Settings.tsx`, `src/pages/Verifications.tsx`, `src/pages/Dashboard.tsx`, `src/pages/APIs.tsx`, `src/pages/Experiments.tsx`
+- **Reproduction Steps**:
+  1. Call `GET /api/control/system/test-status` or open `Settings -> System & Health` -> displayed hardcoded `57 / 57` (`47 / 47` Vitest, `10 / 10` Playwright).
+  2. Force `/api/control/metrics/scores` to fail on `Verifications.tsx` -> silently displayed `{ securityScore: 85, resilienceScore: 90 }`; inspect `Experiments.tsx` -> hardcoded `126` requests / `24%` traffic share and `APIs.tsx` -> hardcoded `route-1` status.
+  3. Trigger delete/revoke/purge actions inside a sandboxed preview iframe -> `window.confirm()` blocked by browser sandbox.
+- **Root Cause**: Prototype UI placeholders and silent `.catch(() => {})` handlers left in control-plane pages.
+- **Security / Functional Impact**: Misleading operational posture metrics during dependency failures and broken destructive actions in iframe deployments.
+- **Fix Applied**: Bound `getSystemTestStatus()` strictly to persisted `test-results/vitest-summary.json` (`UNVERIFIED_AT_RUNTIME` when absent); removed synthetic score/blast-radius/route-status fallbacks across `Verifications.tsx`, `Experiments.tsx`, and `APIs.tsx`; added explicit loading/empty/error states in `Dashboard.tsx` and `Verifications.tsx`; replaced all `window.confirm()` calls with inline two-step confirmation controls.
+- **Regression Test**: `tests/unit/audit-remediation-phase2.test.ts` (`FX-INT-015`)
+- **Validation Result**: Passed (`0` `window.confirm`/`window.alert` calls across `src/`).
+- **Remaining Risk**: `test-results/vitest-summary.json` reflects the most recent `npm test` execution artifact on disk.
+
+---
+
+## FX-OBS-016 — Structured Error Tracking, Safe API Error Contract, & Multi-Layer Secret Scrubbing
+- **Severity**: Medium
+- **Status**: `FIXED AND VERIFIED`
+- **Affected Component**: `src/lib/error-tracker.ts`, `src/api/index.ts`, `src/api/system.ts`, `src/components/ErrorBoundary.tsx`, `src/pages/Settings.tsx`
+- **Reproduction Steps**:
+  1. Trigger an unhandled exception in an API route or React component containing connection URIs, JWTs, API keys, cookies, or query tokens.
+- **Root Cause**: Absence of a unified secret-scrubbing error telemetry pipeline and standardized `{ error, code, requestId, recoveryHint }` global API error handler.
+- **Security / Functional Impact**: Risk of leaking internal stack traces or credentials in unhandled error paths and lack of operator visibility into runtime error spikes.
+- **Fix Applied**: Added `src/lib/error-tracker.ts` (`scrubSensitiveString`, `scrubSensitiveData`, `captureTrackedError` with fingerprint deduplication and spike alerting, and `apiGlobalErrorHandler`), wired scrubbed client boundary reporting in `ErrorBoundary.tsx`, and surfaced scrubbed error events in `Settings -> System & Health`.
+- **Regression Test**: `tests/unit/audit-remediation-phase2.test.ts` (`FX-OBS-016`)
+- **Validation Result**: Passed (zero leaked passwords, URIs, cookies, query tokens, JWTs, PATs, or `fx_live_` keys).
+- **Remaining Risk**: In-memory ring buffer retains the latest 200 unique error fingerprints unless `ERROR_TRACKING_WEBHOOK_URL` is configured for external forwarding.
+
+---
+
+## FX-OBS-017 — Privacy-Conscious First-Party Product Analytics & User Opt-Out
+- **Severity**: Low
+- **Status**: `FIXED AND VERIFIED`
+- **Affected Component**: `src/lib/analytics.ts`, `src/api/system.ts`, `src/lib/api.ts`, `src/pages/LegalPages.tsx`, `src/pages/Settings.tsx`
+- **Reproduction Steps**:
+  1. Audit item 14 required privacy-conscious product analytics with zero PII/cookies/payloads, clear Privacy Policy disclosure, and functional opt-out.
+- **Root Cause**: Product workflow analytics and user opt-out controls were not yet implemented.
+- **Security / Functional Impact**: Operators lacked aggregate funnel telemetry without risking third-party tracking leakage.
+- **Fix Applied**: Implemented allowlist-only, zero-PII aggregate counters (`src/lib/analytics.ts`), honored `X-Fortix-Analytics-Opt-Out: true` and `DISABLE_PRODUCT_ANALYTICS=true`, added user opt-out toggle in `Settings -> System & Health`, and updated `PrivacyPolicyPage` (`src/pages/LegalPages.tsx`).
+- **Regression Test**: `tests/unit/audit-remediation-phase2.test.ts` (`FX-OBS-017`)
+- **Validation Result**: Passed.
+- **Remaining Risk**: None.
+
+---
+
+## FX-DB-018 — Complete Tenant RLS (`WITH CHECK`), Transaction Context Helper, & Signed Workspace Backup/Restore Drill
+- **Severity**: Medium
+- **Status**: `FIXED AND VERIFIED`
+- **Affected Component**: `drizzle/postgres_rls_policies.sql`, `src/db/rls.ts`, `src/db/backup.ts`, `src/api/admin.ts`, `scripts/backup-restore-drill.ts`
+- **Reproduction Steps**:
+  1. Inspect `drizzle/postgres_rls_policies.sql` -> previously covered 6 tables with `USING` clauses only and lacked a `NOBYPASSRLS` application role definition and backup/restore verification tooling.
+- **Root Cause**: Incomplete table coverage (`project_settings`, `verifications`, `webhooks`, `workflow_runs` missing) and absence of cryptographic workspace snapshot export/restore verification.
+- **Security / Functional Impact**: Defense-in-depth Postgres RLS gaps on `INSERT`/`UPDATE` (`WITH CHECK`) and unverified disaster-recovery restore path.
+- **Fix Applied**: Expanded `drizzle/postgres_rls_policies.sql` with `fortix_app` (`NOBYPASSRLS`) grants and `USING` + `WITH CHECK` policies across all 10 tenant tables; added `withTenantContext()` (`SELECT set_config('app.current_user_id', $1, true)`) in `src/db/rls.ts`; implemented SHA-256 signed workspace backup export (redacting `secretHash` and webhook `secret`), integrity verification, and restore engine in `src/db/backup.ts`, exposed admin endpoints in `src/api/admin.ts`, and added executable `npm run db:backup-drill` (`scripts/backup-restore-drill.ts`).
+- **Regression Test**: `tests/unit/audit-remediation-phase2.test.ts` (`FX-DB-018`) & `npm run db:backup-drill`
+- **Validation Result**: Passed.
+- **Remaining Risk**: Exported backups intentionally redact `api_keys.secretHash` and `webhooks.secret` so snapshot files cannot be used offline to crack credentials; operators rotate keys/secrets post-restore.
+
+---
+
+## FX-UX-019 — Inline Email Verification Banner, Operator Onboarding Checklist, & Isolated Resettable `[DEMO]` Workspace
+- **Severity**: Low
+- **Status**: `FIXED AND VERIFIED`
+- **Affected Component**: `src/api/demo-workspace.ts`, `demo-api.ts`, `src/App.tsx`, `src/pages/Dashboard.tsx`
+- **Reproduction Steps**:
+  1. New operators signing in with an empty project had no guided onboarding checklist, no global unverified-email prompt, and no isolated, resettable demo workspace with provenance-labelled sample scenarios.
+- **Root Cause**: Missing onboarding guidance and demo workspace isolation endpoints.
+- **Security / Functional Impact**: High time-to-first-value on blank workspaces or ambiguity between seeded demo data and live gateway traffic.
+- **Fix Applied**: Added inline email verification banner in `App.tsx`, 6-step interactive operator onboarding checklist on `Dashboard.tsx`, honest sidebar storage mode badge, and `POST /api/control/projects/demo-workspace/reset` (`src/api/demo-workspace.ts`) provisioning an isolated `[DEMO] Sandbox Resilience Lab` project with 4 local demo routes and `DEMO_SEED`-labelled baseline records.
+- **Regression Test**: `tests/unit/audit-remediation-phase2.test.ts` (`FX-UX-019`)
+- **Validation Result**: Passed.
+- **Remaining Risk**: None.

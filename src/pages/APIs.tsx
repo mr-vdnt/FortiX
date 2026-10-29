@@ -1,8 +1,8 @@
-import { fetchWithAuth } from "../lib/api.js";
-import React, { useEffect, useState } from 'react';
+import { fetchWithAuth, parseApiErrorResponse, trackProductEvent } from '../lib/api.js';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card } from '../components/ui/card.js';
 import { Link, useOutletContext } from 'react-router-dom';
-import { Globe } from 'lucide-react';
+import { Globe, RefreshCw, AlertCircle, KeyRound, Copy, Check } from 'lucide-react';
 import { useProject } from '../context/ProjectContext.js';
 
 export default function APIs() {
@@ -13,34 +13,59 @@ export default function APIs() {
   const searchQuery = outletContext.searchQuery || '';
 
   const [isAddingRoute, setIsAddingRoute] = useState(false);
-  const [newRoute, setNewRoute] = useState({ path: '/api/', targetUrl: 'https://', authRequired: true });
+  const [newRoute, setNewRoute] = useState({ path: '/api/v1/', targetUrl: 'https://', authRequired: true });
 
   const [isAddingKey, setIsAddingKey] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [copiedKey, setCopiedKey] = useState(false);
 
+  const [isFetching, setIsFetching] = useState(true);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null);
+  const [confirmRevokeKeyId, setConfirmRevokeKeyId] = useState<string | null>(null);
 
   const projectId = currentProject?.id || localStorage.getItem('fortix_project_id') || '';
 
-  const fetchData = () => {
-    fetchWithAuth(`/api/control/routes?projectId=${projectId}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setRoutes(Array.isArray(data) ? data : []))
-      .catch(() => setRoutes([]));
-    fetchWithAuth(`/api/control/keys?projectId=${projectId}`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setKeys(Array.isArray(data) ? data : []))
-      .catch(() => setKeys([]));
-  };
+  const fetchData = useCallback(async () => {
+    setIsFetching(true);
+    try {
+      const [routesRes, keysRes] = await Promise.all([
+        fetchWithAuth(`/api/control/routes?projectId=${projectId}`),
+        fetchWithAuth(`/api/control/keys?projectId=${projectId}`),
+      ]);
+
+      if (!routesRes.ok) {
+        const parsed = await parseApiErrorResponse(routesRes, 'Unable to load protected API routes.');
+        setErrorMsg(parsed.requestId ? `${parsed.message} (Ref: ${parsed.requestId})` : parsed.message);
+      } else {
+        setErrorMsg('');
+        const data = await routesRes.json();
+        setRoutes(Array.isArray(data) ? data : []);
+      }
+
+      if (keysRes.ok) {
+        const kData = await keysRes.json();
+        setKeys(Array.isArray(kData) ? kData : []);
+      }
+    } catch {
+      setErrorMsg('Network error loading routes and gateway keys. Check connection and retry.');
+    } finally {
+      setIsFetching(false);
+    }
+  }, [projectId]);
 
   useEffect(() => {
     fetchData();
-  }, [projectId]);
+  }, [fetchData]);
 
   const createRoute = async () => {
     setErrorMsg('');
+    if (!newRoute.path.trim().startsWith('/')) {
+      setErrorMsg('Route path pattern must start with "/" (for example, /api/v1/orders).');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetchWithAuth('/api/control/routes', {
@@ -48,27 +73,33 @@ export default function APIs() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           projectId,
-          pathPattern: newRoute.path,
-          targetUrl: newRoute.targetUrl
-        })
+          pathPattern: newRoute.path.trim(),
+          targetUrl: newRoute.targetUrl.trim(),
+        }),
       });
       if (res.ok) {
         setIsAddingRoute(false);
-        setNewRoute({ path: '/api/', targetUrl: 'https://', authRequired: true });
-        fetchData();
+        setNewRoute({ path: '/api/v1/', targetUrl: 'https://', authRequired: true });
+        trackProductEvent('route_registered');
+        await fetchData();
       } else {
-        const err = await res.json();
-        setErrorMsg(err.error || 'Failed to create route');
+        const err = await parseApiErrorResponse(res, 'Failed to register upstream route.');
+        setErrorMsg(err.requestId ? `${err.message} (Ref: ${err.requestId})` : err.message);
       }
-    } catch (err) {
-      setErrorMsg('Failed to create route');
+    } catch {
+      setErrorMsg('Network error while creating route.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const deleteRoute = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this route?')) return;
-    await fetchWithAuth(`/api/control/routes/${id}?projectId=${projectId}`, { method: 'DELETE' });
+    setConfirmDeleteRouteId(null);
+    const res = await fetchWithAuth(`/api/control/routes/${id}?projectId=${projectId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await parseApiErrorResponse(res, 'Failed to delete route.');
+      setErrorMsg(err.message);
+    }
     fetchData();
   };
 
@@ -79,61 +110,87 @@ export default function APIs() {
       const res = await fetchWithAuth('/api/control/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, name: newKeyName || 'FortiX API Key' })
+        body: JSON.stringify({ projectId, name: newKeyName.trim() || 'FortiX Gateway Key' }),
       });
       if (res.ok) {
         const data = await res.json();
         setGeneratedKey(data.rawKey);
         setIsAddingKey(false);
         setNewKeyName('');
-        fetchData();
+        trackProductEvent('api_key_issued');
+        await fetchData();
       } else {
-        const err = await res.json();
-        setErrorMsg(err.error || 'Failed to create key');
+        const err = await parseApiErrorResponse(res, 'Failed to issue gateway API key.');
+        setErrorMsg(err.message);
       }
-    } catch (err) {
-      setErrorMsg('Failed to create key');
+    } catch {
+      setErrorMsg('Network error while generating API key.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const revokeKey = async (id: string) => {
-    if (!confirm('Are you sure you want to revoke this key? Traffic will be blocked instantly.')) return;
-    await fetchWithAuth(`/api/control/keys/${id}/revoke`, {
+    setConfirmRevokeKeyId(null);
+    const res = await fetchWithAuth(`/api/control/keys/${id}/revoke`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId })
+      body: JSON.stringify({ projectId }),
     });
+    if (!res.ok) {
+      const err = await parseApiErrorResponse(res, 'Failed to revoke API key.');
+      setErrorMsg(err.message);
+    }
     fetchData();
   };
 
-  const getStatus = (id: string) => {
-    if (id === 'route-1') return 'Under Test';
-    return 'Active';
+  const copyRawKey = async (raw: string) => {
+    try {
+      await navigator.clipboard.writeText(raw);
+      setCopiedKey(true);
+      setTimeout(() => setCopiedKey(false), 2000);
+    } catch {}
   };
 
-  const filteredRoutes = (Array.isArray(routes) ? routes : []).filter(r => {
+  const filteredRoutes = (Array.isArray(routes) ? routes : []).filter((r) => {
     if (!r) return false;
-    const status = getStatus(r.id);
     const q = (searchQuery || '').toLowerCase();
     const routePath = (r.pathPattern || r.path || '').toLowerCase();
-    const routeStatus = (status || '').toLowerCase();
     const routeTarget = (r.targetUrl || '').toLowerCase();
-    return routePath.includes(q) || routeStatus.includes(q) || routeTarget.includes(q);
+    return routePath.includes(q) || routeTarget.includes(q);
   });
 
   return (
     <div className="space-y-8">
       {errorMsg && (
-        <div className="bg-red-500/20 text-red-400 p-4 rounded border border-red-500/30">
-          {errorMsg}
+        <div
+          role="alert"
+          className="bg-red-500/15 text-red-300 p-4 rounded-xl border border-red-500/30 flex items-center justify-between gap-3 text-xs"
+        >
+          <div className="flex items-center gap-2">
+            <AlertCircle size={15} className="shrink-0 text-red-400" />
+            <span>{errorMsg}</span>
+          </div>
+          <button
+            type="button"
+            onClick={fetchData}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-100 font-semibold whitespace-nowrap"
+          >
+            <RefreshCw size={12} />
+            <span>Retry</span>
+          </button>
         </div>
       )}
 
       {/* Routes Section */}
       <div>
         <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-          <h2 className="text-3xl font-bold tracking-tight text-strong">Protected APIs</h2>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-strong">Protected APIs</h2>
+            <p className="text-xs text-muted mt-1">
+              Register authorized upstream endpoints to enforce API-key authentication, WAF rules, and SSRF protection.
+            </p>
+          </div>
           <div className="flex items-center gap-2.5">
             <Link
               to="/directory"
@@ -143,6 +200,7 @@ export default function APIs() {
               <span>Browse 800+ Public APIs</span>
             </Link>
             <button
+              type="button"
               onClick={() => setIsAddingRoute(!isAddingRoute)}
               className="px-4 py-2 bg-hover border border-subtle text-strong rounded-lg text-xs font-semibold hover:bg-hover-strong transition whitespace-nowrap shrink-0"
             >
@@ -153,43 +211,38 @@ export default function APIs() {
 
         {isAddingRoute && (
           <Card className="p-6 mb-6 bg-card border-subtle">
-            <h3 className="text-lg font-bold text-strong mb-4">Register New Upstream Route</h3>
+            <h3 className="text-base font-bold text-strong mb-4">Register New Upstream Route</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Path Segment</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-muted">Path Segment</label>
                 <input
                   type="text"
                   value={newRoute.path}
-                  onChange={e => setNewRoute({...newRoute, path: e.target.value})}
-                  className="bg-base border border-subtle text-strong text-sm rounded px-3 py-2 outline-none focus:border-primary"
+                  onChange={(e) => setNewRoute({ ...newRoute, path: e.target.value })}
+                  className="bg-base border border-subtle text-strong text-sm rounded-xl px-3.5 py-2 outline-none focus:border-primary font-mono"
                   placeholder="/api/v1/resource"
                 />
               </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Target URL</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-muted">Authorized Target URL</label>
                 <input
-                  type="text"
+                  type="url"
                   value={newRoute.targetUrl}
-                  onChange={e => setNewRoute({...newRoute, targetUrl: e.target.value})}
-                  className="bg-base border border-subtle text-strong text-sm rounded px-3 py-2 outline-none focus:border-primary"
-                  placeholder="https://backend.internal"
+                  onChange={(e) => setNewRoute({ ...newRoute, targetUrl: e.target.value })}
+                  className="bg-base border border-subtle text-strong text-sm rounded-xl px-3.5 py-2 outline-none focus:border-primary font-mono"
+                  placeholder="https://api.yourdomain.com/v1/resource"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={newRoute.authRequired}
-                  onChange={e => setNewRoute({...newRoute, authRequired: e.target.checked})}
-                  className="accent-[#F27D26] w-4 h-4 cursor-pointer"
-                />
-                <span className="text-sm font-medium text-strong">Require Authentication</span>
-              </label>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-muted">
+                Loopback, RFC1918 private networks, and cloud metadata IPs are blocked automatically by SSRF guardrails.
+              </span>
               <button
+                type="button"
                 onClick={createRoute}
                 disabled={loading}
-                className="px-6 py-2 bg-primary text-inverted rounded text-sm font-bold tracking-widest uppercase hover:bg-orange-500 transition disabled:opacity-50"
+                className="px-5 py-2 bg-primary text-inverted rounded-lg text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 whitespace-nowrap"
               >
                 {loading ? 'Saving...' : 'Save Route'}
               </button>
@@ -197,43 +250,101 @@ export default function APIs() {
           </Card>
         )}
 
-        <div className="grid gap-4">
-          {filteredRoutes.map(r => {
-            const status = getStatus(r.id);
-            return (
-              <Card key={r.id} className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center bg-card border-subtle">
-                <div>
-                  <p className="font-medium text-lg text-strong">{r.pathPattern || r.path || '—'}</p>
-                  <p className="text-sm text-muted mt-1">Targets: {r.targetUrl || '—'}</p>
+        {isFetching ? (
+          <div className="space-y-3">
+            {[1, 2].map((n) => (
+              <div key={n} className="h-20 bg-card border border-subtle rounded-2xl animate-pulse" />
+            ))}
+          </div>
+        ) : filteredRoutes.length === 0 ? (
+          <Card className="p-8 bg-card border-subtle text-center space-y-2">
+            <p className="text-sm font-semibold text-strong">
+              {routes.length === 0 ? 'No protected routes registered in this project' : 'No routes match your current search'}
+            </p>
+            <p className="text-xs text-muted max-w-md mx-auto">
+              {routes.length === 0
+                ? 'Add an authorized upstream endpoint above to generate a gateway proxy URL (/proxy/:routeId) protected by FortiX.'
+                : 'Clear the search filter in the header to view all registered routes.'}
+            </p>
+            {routes.length === 0 && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingRoute(true)}
+                  className="px-4 py-2 bg-primary text-inverted rounded-lg text-xs font-semibold"
+                >
+                  Add First Route
+                </button>
+              </div>
+            )}
+          </Card>
+        ) : (
+          <div className="grid gap-3">
+            {filteredRoutes.map((r) => (
+              <Card
+                key={r.id}
+                className="p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card border-subtle"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-semibold text-sm sm:text-base text-strong">
+                      {r.pathPattern || r.path || '—'}
+                    </span>
+                    <span className="text-xs text-muted">·</span>
+                    <span className="text-xs font-mono text-muted">Proxy ID: {r.id.slice(0, 8)}…</span>
+                  </div>
+                  <p className="text-xs text-muted font-mono break-all">Upstream: {r.targetUrl || '—'}</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-4 mt-4 md:mt-0">
-                  <div className={`text-xs px-3 py-1 border rounded font-bold tracking-widest uppercase ${
-                    status === 'Under Test' ? 'bg-primary/20 text-primary border-primary/30 animate-pulse' :
-                    'bg-green-500/20 text-green-400 border-green-500/30'
-                  }`}>
-                    {status}
-                  </div>
-                  <div className="text-xs px-3 py-1 bg-hover border border-subtle rounded text-base-text font-bold tracking-widest uppercase">
-                    {r.authRequired ? 'Auth Required' : 'Public'}
-                  </div>
-                  <button onClick={() => deleteRoute(r.id)} className="text-xs text-red-500 hover:text-red-400 uppercase font-bold tracking-widest">
-                    Delete
-                  </button>
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  <span className="text-xs text-emerald-400 font-medium">Active</span>
+                  <span className="text-xs text-muted">·</span>
+                  <span className="text-xs text-muted">Key Auth Enforced</span>
+                  {confirmDeleteRouteId === r.id ? (
+                    <div className="flex items-center gap-2 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => deleteRoute(r.id)}
+                        className="px-2.5 py-1 rounded bg-red-500 text-white text-xs font-semibold whitespace-nowrap"
+                      >
+                        Confirm Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteRouteId(null)}
+                        className="px-2 py-1 text-xs text-muted hover:text-strong"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteRouteId(r.id)}
+                      className="text-xs text-red-400 hover:text-red-300 font-semibold ml-2"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </Card>
-            );
-          })}
-          {filteredRoutes.length === 0 && <p className="text-muted text-sm">No routes found matching your search.</p>}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Keys Section */}
       <div>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-bold tracking-tight text-strong">API Keys</h2>
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-strong">Gateway API Keys</h2>
+            <p className="text-xs text-muted mt-1">
+              Secrets are displayed once at creation and stored strictly as salted bcrypt hashes on the server.
+            </p>
+          </div>
           <button
+            type="button"
             onClick={() => setIsAddingKey(!isAddingKey)}
-            className="px-4 py-2 bg-primary text-inverted rounded text-sm font-bold tracking-widest uppercase hover:bg-orange-500 transition"
+            className="px-4 py-2 bg-primary text-inverted rounded-lg text-xs font-semibold hover:opacity-90 transition whitespace-nowrap shrink-0"
           >
             {isAddingKey ? 'Cancel' : 'Generate Key'}
           </button>
@@ -241,71 +352,117 @@ export default function APIs() {
 
         {isAddingKey && (
           <Card className="p-6 mb-6 bg-card border-subtle">
-            <h3 className="text-lg font-bold text-strong mb-4">Create New API Key</h3>
-            <div className="flex flex-col gap-2 mb-4">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-muted">Key Name (Internal)</label>
+            <h3 className="text-base font-bold text-strong mb-4">Issue Scoped Gateway API Key</h3>
+            <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="text"
                 value={newKeyName}
-                onChange={e => setNewKeyName(e.target.value)}
-                className="bg-base border border-subtle text-strong text-sm rounded px-3 py-2 outline-none focus:border-primary"
-                placeholder="e.g. Production Billing App"
+                onChange={(e) => setNewKeyName(e.target.value)}
+                className="flex-1 bg-base border border-subtle text-strong text-sm rounded-xl px-3.5 py-2 outline-none focus:border-primary"
+                placeholder="Key label (e.g., Production Checkout Service)"
               />
-            </div>
-            <div className="flex justify-end">
               <button
+                type="button"
                 onClick={createKey}
-                disabled={loading || !newKeyName.trim()}
-                className="px-6 py-2 bg-primary text-inverted rounded text-sm font-bold tracking-widest uppercase hover:bg-orange-500 transition disabled:opacity-50"
+                disabled={loading}
+                className="px-5 py-2 bg-primary text-inverted rounded-lg text-xs font-semibold hover:opacity-90 transition disabled:opacity-50 whitespace-nowrap"
               >
-                {loading ? 'Generating...' : 'Create Secret Key'}
+                {loading ? 'Issuing...' : 'Issue Secret Key'}
               </button>
             </div>
           </Card>
         )}
 
         {generatedKey && (
-          <Card className="p-6 mb-6 bg-green-900/20 border-green-500/50">
-            <h3 className="text-lg font-bold text-green-400 mb-2">Key Generated Successfully</h3>
-            <p className="text-sm text-green-300 mb-4">Please copy this secret key now. You will not be able to see it again.</p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 bg-black/50 border border-green-500/30 p-3 rounded text-green-400 font-mono text-sm break-all">
-                {generatedKey}
-              </code>
+          <Card className="p-5 mb-6 bg-emerald-500/10 border border-emerald-500/30 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold text-emerald-300 flex items-center gap-1.5">
+                <KeyRound size={14} />
+                <span>Copy your gateway API key now — it will never be shown again</span>
+              </div>
               <button
-                onClick={() => { navigator.clipboard.writeText(generatedKey); alert('Copied!'); setGeneratedKey(null); }}
-                className="px-4 py-3 bg-green-600 hover:bg-green-500 text-strong rounded font-bold uppercase text-xs tracking-widest transition"
+                type="button"
+                onClick={() => setGeneratedKey(null)}
+                className="text-xs text-muted hover:text-strong"
               >
-                Copy & Close
+                Dismiss
+              </button>
+            </div>
+            <div className="flex items-center gap-2 bg-base border border-subtle rounded-xl px-3.5 py-2.5">
+              <code className="flex-1 text-xs font-mono text-strong break-all">{generatedKey}</code>
+              <button
+                type="button"
+                onClick={() => copyRawKey(generatedKey)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-hover text-xs font-semibold text-strong shrink-0"
+              >
+                {copiedKey ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                <span>{copiedKey ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
           </Card>
         )}
 
-        <div className="grid gap-4">
-          {keys.map(k => (
-            <Card key={k.id} className={`p-4 flex flex-col md:flex-row justify-between items-start md:items-center bg-card border-subtle ${k.revoked ? 'opacity-50' : ''}`}>
-              <div>
-                <p className="font-medium text-strong flex items-center gap-2">
-                  {k.name}
-                  <span className="text-muted text-xs font-mono">{k.id.split('-')[0]}***</span>
-                </p>
-                <p className="text-xs text-muted mt-1">Created: {new Date(k.createdAt).toLocaleString()}</p>
-              </div>
-              <div className="flex items-center gap-4 mt-4 md:mt-0">
-                <div className={`text-xs px-3 py-1 border rounded font-bold tracking-widest uppercase ${k.revoked ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-green-500/20 text-green-400 border-green-500/30'}`}>
-                  {k.revoked ? 'Revoked' : 'Active'}
+        {keys.length === 0 ? (
+          <Card className="p-8 bg-card border-subtle text-center space-y-2">
+            <p className="text-sm font-semibold text-strong">No gateway API keys issued yet</p>
+            <p className="text-xs text-muted max-w-md mx-auto">
+              Generate a scoped gateway key to authenticate client requests sent to your FortiX `/proxy/:routeId` endpoints.
+            </p>
+          </Card>
+        ) : (
+          <div className="grid gap-3">
+            {keys.map((k) => (
+              <Card
+                key={k.id}
+                className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-card border-subtle"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm text-strong">{k.name}</span>
+                    <span className="text-xs text-muted">·</span>
+                    <span className="font-mono text-xs text-muted">{k.keyPrefix}••••••••</span>
+                  </div>
+                  <div className="text-[11px] text-muted font-mono tabular-nums">
+                    Created {k.createdAt ? new Date(k.createdAt).toLocaleString() : 'recently'}
+                  </div>
                 </div>
-                {!k.revoked && (
-                  <button onClick={() => revokeKey(k.id)} className="text-xs text-red-500 hover:text-red-400 uppercase font-bold tracking-widest">
-                    Revoke
-                  </button>
-                )}
-              </div>
-            </Card>
-          ))}
-          {keys.length === 0 && <p className="text-muted text-sm">No API keys generated.</p>}
-        </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {k.revoked ? (
+                    <span className="text-xs text-red-400 font-semibold">Revoked</span>
+                  ) : confirmRevokeKeyId === k.id ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => revokeKey(k.id)}
+                        className="px-2.5 py-1 rounded bg-red-500 text-white text-xs font-semibold whitespace-nowrap"
+                      >
+                        Confirm Revoke
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRevokeKeyId(null)}
+                        className="px-2 py-1 text-xs text-muted hover:text-strong"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-xs text-emerald-400 font-medium">Active</span>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRevokeKeyId(k.id)}
+                        className="text-xs text-red-400 hover:text-red-300 font-semibold"
+                      >
+                        Revoke
+                      </button>
+                    </>
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

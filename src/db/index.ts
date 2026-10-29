@@ -193,7 +193,11 @@ function initializeDatabase() {
   const isPlaceholder = connectionString.includes('your_strong_database_password_here');
   const isRemoteOrExplicitLocal =
     !isLocalDatabaseHost(connectionString) || process.env.USE_LOCAL_POSTGRES === 'true';
-  const allowRenderHost = isProduction || !connectionString.includes('render.com');
+  const allowRenderHost =
+    process.env.RENDER === 'true' ||
+    process.env.USE_RENDER_DB === 'true' ||
+    process.env.STRICT_PERSISTENT_DB === 'true' ||
+    !connectionString.includes('render.com');
 
   if (
     !isTest &&
@@ -216,8 +220,13 @@ function initializeDatabase() {
       });
       storageMode = 'persistent';
       return drizzlePgJs(client, { schema });
-    } catch {
-      console.warn('[Database] Could not initialize configured DATABASE_URL. Falling back to pg-mem.');
+    } catch (err: any) {
+      if (!isLocalDatabaseHost(connectionString)) {
+        throw new Error(
+          `[FATAL] Configured remote DATABASE_URL failed client initialization: ${err?.message || err}`
+        );
+      }
+      console.warn('[Database] Could not initialize local DATABASE_URL. Falling back to pg-mem.');
     }
   }
 

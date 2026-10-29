@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { fetchWithAuth } from '../lib/api.js';
+import { fetchWithAuth, parseApiErrorResponse, trackProductEvent } from '../lib/api.js';
 import { useProject } from '../context/ProjectContext.js';
 import { Card } from '../components/ui/card.js';
 import {
@@ -87,6 +87,8 @@ interface AutonomousRun {
 export default function Verifications() {
   const { currentProject } = useProject();
   const [scores, setScores] = useState({ securityScore: 0, resilienceScore: 0 });
+  const [scoresLoaded, setScoresLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [routes, setRoutes] = useState<any[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string>('');
   const [selectedProfile, setSelectedProfile] = useState<string>('full-verification');
@@ -99,11 +101,27 @@ export default function Verifications() {
     if (!currentProject?.id) return;
     const pId = currentProject.id;
 
-    // Fetch Scores
+    // Fetch Scores — fail honestly instead of synthesizing fake numbers
     fetchWithAuth(`/api/control/metrics/scores?projectId=${pId}`)
-      .then((r) => (r.ok ? r.json() : { securityScore: 85, resilienceScore: 90 }))
-      .then((data) => setScores({ securityScore: data.securityScore || 0, resilienceScore: data.resilienceScore || 0 }))
-      .catch(() => {});
+      .then(async (r) => {
+        if (!r.ok) {
+          const parsed = await parseApiErrorResponse(r, 'Unable to load project verification scores.');
+          throw new Error(parsed.message);
+        }
+        return r.json();
+      })
+      .then((data) => {
+        setScores({
+          securityScore: Number(data.securityScore ?? 0),
+          resilienceScore: Number(data.resilienceScore ?? 0),
+        });
+        setScoresLoaded(true);
+        setLoadError(null);
+      })
+      .catch((err: any) => {
+        setScoresLoaded(false);
+        setLoadError(err?.message || 'Unable to load project verification scores.');
+      });
 
     // Fetch Routes for selector
     fetchWithAuth(`/api/control/routes?projectId=${pId}`)
@@ -148,6 +166,7 @@ export default function Verifications() {
   const handleLaunchRun = async () => {
     if (!currentProject?.id || !selectedRouteId) return;
     setIsLaunching(true);
+    setLoadError(null);
     try {
       const res = await fetchWithAuth('/api/control/runs', {
         method: 'POST',
@@ -161,11 +180,18 @@ export default function Verifications() {
 
       if (res.ok) {
         const data = await res.json();
+        trackProductEvent(
+          'verification_run_started',
+          currentProject?.name?.startsWith('[DEMO]') ? 'demo' : 'standard'
+        );
         setActiveRunId(data.runId);
         loadData();
+      } else {
+        const parsed = await parseApiErrorResponse(res, 'Failed to launch autonomous verification run.');
+        setLoadError(parsed.message);
       }
-    } catch (err) {
-      console.error('Failed to launch run:', err);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Network error while launching verification run.');
     } finally {
       setIsLaunching(false);
     }
@@ -241,15 +267,32 @@ export default function Verifications() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 text-xs text-rose-400">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={15} className="shrink-0" />
+            <span>{loadError}</span>
+          </div>
+          <button
+            onClick={loadData}
+            className="px-2.5 py-1 rounded-lg bg-surface border border-subtle text-strong hover:bg-hover font-semibold whitespace-nowrap shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* TOP SCORE OVERVIEW */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 tabular-nums">
         <Card className="p-4 bg-surface border border-subtle flex items-center gap-4">
           <div className="p-3 rounded-lg bg-green-500/10 text-green-400 border border-green-500/20">
             <Shield size={24} />
           </div>
           <div>
             <div className="text-[10px] uppercase font-bold tracking-wider text-muted">Security Score</div>
-            <div className="text-2xl font-mono font-bold text-strong">{scores.securityScore} <span className="text-xs text-muted">/ 100</span></div>
+            <div className="text-2xl font-mono font-bold text-strong">
+              {scoresLoaded ? scores.securityScore : '—'} <span className="text-xs text-muted">/ 100</span>
+            </div>
           </div>
         </Card>
 
@@ -259,7 +302,9 @@ export default function Verifications() {
           </div>
           <div>
             <div className="text-[10px] uppercase font-bold tracking-wider text-muted">Resilience Score</div>
-            <div className="text-2xl font-mono font-bold text-strong">{scores.resilienceScore} <span className="text-xs text-muted">/ 100</span></div>
+            <div className="text-2xl font-mono font-bold text-strong">
+              {scoresLoaded ? scores.resilienceScore : '—'} <span className="text-xs text-muted">/ 100</span>
+            </div>
           </div>
         </Card>
 

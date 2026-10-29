@@ -7,13 +7,20 @@ import cors from 'cors';
 import http from 'http';
 import { resolveGatewayPort } from './src/lib/port.js';
 import { isOriginAllowed, resolveRequestHost } from './src/lib/cors-csrf.js';
+import { evaluateReadinessContract } from './src/lib/readiness.js';
+import { captureTrackedError, apiGlobalErrorHandler } from './src/lib/error-tracker.js';
 
 let runtimeUncaughtErrors = 0;
 
 // Deliberate process-level exception & rejection handling (no silent ECONNREFUSED suppression)
 process.on('uncaughtException', (err) => {
   runtimeUncaughtErrors++;
-  console.error('[RuntimeError] Uncaught Exception:', err?.message || err);
+  captureTrackedError({
+    source: 'server',
+    code: 'UNCAUGHT_EXCEPTION',
+    statusCode: 500,
+    message: err?.message || String(err),
+  });
   if (process.env.STRICT_FATAL_UNCAUGHT === 'true') {
     process.exit(1);
   }
@@ -21,7 +28,12 @@ process.on('uncaughtException', (err) => {
 
 process.on('unhandledRejection', (reason: any) => {
   runtimeUncaughtErrors++;
-  console.error('[RuntimeError] Unhandled Promise Rejection:', reason?.message || reason);
+  captureTrackedError({
+    source: 'server',
+    code: 'UNHANDLED_REJECTION',
+    statusCode: 500,
+    message: reason?.message || String(reason),
+  });
 });
 
 let isShuttingDown = false;
@@ -157,18 +169,15 @@ async function startServer() {
         return res.status(503).json({ status: 'shutting_down' });
       }
       const health = await getDependenciesHealth();
-      const strictDb = process.env.STRICT_PERSISTENT_DB === 'true';
-      const redisRequired = process.env.STRICT_REDIS_READINESS === 'true';
-      const postgresReady =
-        health.postgres?.status === 'healthy' &&
-        (!strictDb || health.postgres?.storageMode === 'persistent');
-      const redisReady = !redisRequired || health.redis?.status === 'healthy';
-      const isReady = postgresReady && redisReady;
+      const evaluation = evaluateReadinessContract(health);
 
-      res.status(isReady ? 200 : 503).json({
-        status: isReady ? health.status : 'unhealthy',
+      res.status(evaluation.httpStatus).json({
+        status: evaluation.status,
+        deploymentMode: evaluation.deploymentMode,
+        persistenceVerified: evaluation.persistenceVerified,
         postgres: health.postgres,
         redis: health.redis,
+        warnings: evaluation.warnings,
         uncaughtErrors: runtimeUncaughtErrors,
       });
     });
@@ -260,6 +269,8 @@ async function startServer() {
       next(err);
     }
   });
+
+  app.use(apiGlobalErrorHandler as any);
 
   // Graceful shutdown
   const shutdown = async () => {

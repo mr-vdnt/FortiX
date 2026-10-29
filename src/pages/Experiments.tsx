@@ -1,4 +1,4 @@
-import { fetchWithAuth } from "../lib/api.js";
+import { fetchWithAuth, trackProductEvent } from "../lib/api.js";
 import React, { useEffect, useState } from 'react';
 import { Card } from '../components/ui/card.js';
 import { Play, XCircle, CheckCircle, Clock, ShieldAlert, Target, ShieldCheck, Zap, RotateCcw, Trash2, AlertTriangle, Layers, Activity, RefreshCw } from 'lucide-react';
@@ -22,6 +22,7 @@ export default function Experiments() {
   const [dlqStats, setDlqStats] = useState<any>(null);
   const [expandedDlqJob, setExpandedDlqJob] = useState<string | null>(null);
   const [isDlqLoading, setIsDlqLoading] = useState(false);
+  const [confirmPurgeAll, setConfirmPurgeAll] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -86,11 +87,15 @@ export default function Experiments() {
           projectId: localStorage.getItem('fortix_project_id') || '',
           routeId: selectedRouteId,
           type: selectedType,
-          config: { latencyMs: 800, durationMs: 15000 },
+          config: { latencyMs: 800, durationMs: 15000, hypothesis },
           scheduledTime: scheduledTime ? new Date(scheduledTime).toISOString() : null
         })
       });
       if (res.ok) {
+        trackProductEvent(
+          'experiment_triggered',
+          currentProject?.name?.startsWith('[DEMO]') ? 'demo' : 'standard'
+        );
         showToast(`Launched ${selectedType.toUpperCase()} experiment.`);
         setIsAuthorized(false);
       }
@@ -141,11 +146,11 @@ export default function Experiments() {
   };
 
   const handlePurgeAll = async () => {
-    if (!confirm('Are you sure you want to permanently purge all Dead-Letter Queue records?')) return;
     try {
       const res = await fetchWithAuth('/api/control/dlq/purge-all', { method: 'DELETE' });
       if (res.ok) {
         const data = await res.json();
+        setConfirmPurgeAll(false);
         showToast(`Purged ${data.purgedCount} DLQ jobs.`);
         fetchDlqData();
       }
@@ -187,7 +192,7 @@ export default function Experiments() {
             <Zap size={14} /> Configure Experiment
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] font-bold uppercase tracking-widest text-muted block mb-2">Target Route</label>
               <select value={selectedRouteId} onChange={e => setSelectedRouteId(e.target.value)} className="w-full bg-base border border-subtle text-strong text-sm rounded-xl px-3 py-2 outline-none focus:border-primary">
@@ -275,13 +280,30 @@ export default function Experiments() {
               >
                 <RotateCcw size={12} /> Retry All
               </button>
-              <button
-                onClick={handlePurgeAll}
-                disabled={dlqJobs.length === 0}
-                className="px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 rounded-lg text-[10px] font-bold tracking-widest uppercase transition disabled:opacity-40 flex items-center gap-1"
-              >
-                <Trash2 size={12} /> Purge DLQ
-              </button>
+              {!confirmPurgeAll ? (
+                <button
+                  onClick={() => setConfirmPurgeAll(true)}
+                  disabled={dlqJobs.length === 0}
+                  className="px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 rounded-lg text-[10px] font-bold tracking-widest uppercase transition disabled:opacity-40 flex items-center gap-1 whitespace-nowrap shrink-0"
+                >
+                  <Trash2 size={12} /> Purge DLQ
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handlePurgeAll}
+                    className="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-bold tracking-widest uppercase transition whitespace-nowrap shrink-0"
+                  >
+                    Confirm Purge
+                  </button>
+                  <button
+                    onClick={() => setConfirmPurgeAll(false)}
+                    className="px-2.5 py-1.5 bg-surface border border-subtle text-muted hover:text-strong rounded-lg text-[10px] font-bold tracking-widest uppercase transition whitespace-nowrap shrink-0"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -322,22 +344,33 @@ export default function Experiments() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div className="space-y-4">
                               <div>
-                                <div className="text-[10px] font-bold tracking-widest uppercase text-muted mb-2">Scientific Hypothesis</div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="text-[10px] font-bold tracking-widest uppercase text-muted">Scientific Hypothesis</div>
+                                  {e.config?.provenance === 'DEMO_SEED' && (
+                                    <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400">
+                                      DEMO_SEED
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-sm text-base-text italic bg-card p-4 rounded border border-subtle">
-                                  "The API should degrade gracefully and reject upstream traffic if latency exceeds 500ms, returning a 503 instead of hanging."
+                                  "{e.config?.hypothesis || hypothesis}"
                                 </p>
                               </div>
                               
                               <div>
-                                <div className="text-[10px] font-bold tracking-widest uppercase text-muted mb-2">Blast Radius</div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="text-[10px] font-bold tracking-widest uppercase text-muted mb-2">Configured Fault Parameters</div>
+                                <div className="grid grid-cols-2 gap-4 tabular-nums">
                                   <div className="bg-card p-3 rounded border border-subtle">
-                                    <div className="text-[10px] font-bold tracking-widest uppercase text-muted mb-1">Impacted Requests</div>
-                                    <div className="font-mono text-xl text-strong">126</div>
+                                    <div className="text-[10px] font-bold tracking-widest uppercase text-muted mb-1">Fault Intensity</div>
+                                    <div className="font-mono text-xl text-strong">
+                                      {e.config?.latencyMs ? `${e.config.latencyMs}ms` : e.type?.toUpperCase()}
+                                    </div>
                                   </div>
                                   <div className="bg-card p-3 rounded border border-subtle">
-                                    <div className="text-[10px] font-bold tracking-widest uppercase text-muted mb-1">Traffic Share</div>
-                                    <div className="font-mono text-xl text-strong">24<span className="text-sm text-muted">%</span></div>
+                                    <div className="text-[10px] font-bold tracking-widest uppercase text-muted mb-1">Fault Window</div>
+                                    <div className="font-mono text-xl text-strong">
+                                      {e.config?.durationMs ? `${Math.round(e.config.durationMs / 1000)}s` : '15s'}
+                                    </div>
                                   </div>
                                 </div>
                               </div>

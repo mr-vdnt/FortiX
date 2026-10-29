@@ -13,6 +13,7 @@ export function AlertingSettings({ user }: { user?: any }) {
   const [newUrl, setNewUrl] = useState('');
   const [newSecret, setNewSecret] = useState('');
   const [newEvents, setNewEvents] = useState<string[]>([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const availableEvents = [
     'RATE_LIMIT_EXCEEDED',
@@ -45,6 +46,7 @@ export function AlertingSettings({ user }: { user?: any }) {
 
   const handleAddWebhook = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     try {
       const res = await fetchWithAuth(`/api/control/webhooks?projectId=${projectId}`, {
         method: 'POST',
@@ -66,29 +68,33 @@ export function AlertingSettings({ user }: { user?: any }) {
         setIsAdding(false);
         loadWebhooks();
       } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to add webhook');
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to add webhook');
       }
     } catch (err) {
-      alert('Error adding webhook');
+      setError('Network error while adding webhook');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this webhook?')) return;
+    setError(null);
     try {
       const res = await fetchWithAuth(`/api/control/webhooks/${id}?projectId=${projectId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
+        setConfirmDeleteId(null);
         loadWebhooks();
+      } else {
+        setError('Failed to delete webhook');
       }
     } catch (err) {
-      alert('Error deleting webhook');
+      setError('Network error while deleting webhook');
     }
   };
 
   const handleToggle = async (id: string, currentStatus: boolean) => {
+    setError(null);
     try {
       const res = await fetchWithAuth(`/api/control/webhooks/${id}/toggle?projectId=${projectId}`, {
         method: 'PATCH',
@@ -97,9 +103,11 @@ export function AlertingSettings({ user }: { user?: any }) {
       });
       if (res.ok) {
         loadWebhooks();
+      } else {
+        setError('Failed to update webhook status');
       }
     } catch (err) {
-      alert('Error toggling webhook');
+      setError('Network error while updating webhook status');
     }
   };
 
@@ -195,12 +203,23 @@ export function AlertingSettings({ user }: { user?: any }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button onClick={() => handleToggle(wh.id, wh.isActive)} className="text-xs font-bold text-muted hover:text-strong transition uppercase tracking-widest">
+                    <button onClick={() => handleToggle(wh.id, wh.isActive)} className="text-xs font-bold text-muted hover:text-strong transition uppercase tracking-widest whitespace-nowrap shrink-0">
                       {wh.isActive ? 'Disable' : 'Enable'}
                     </button>
-                    <button onClick={() => handleDelete(wh.id)} className="p-2 text-muted hover:text-red-500 transition rounded-full hover:bg-red-500/10">
-                      <Trash2 size={16} />
-                    </button>
+                    {confirmDeleteId !== wh.id ? (
+                      <button onClick={() => setConfirmDeleteId(wh.id)} className="p-2 text-muted hover:text-red-500 transition rounded-full hover:bg-red-500/10" title="Delete webhook">
+                        <Trash2 size={16} />
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => handleDelete(wh.id)} className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-[10px] font-bold uppercase tracking-wider whitespace-nowrap shrink-0">
+                          Confirm
+                        </button>
+                        <button onClick={() => setConfirmDeleteId(null)} className="px-2 py-1 bg-base border border-subtle text-muted hover:text-strong rounded text-[10px] font-semibold whitespace-nowrap shrink-0">
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

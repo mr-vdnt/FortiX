@@ -25,6 +25,7 @@ import {
   consumeAuthActionToken,
 } from '../lib/auth-tokens.js';
 import { disconnectSocketsForToken, disconnectSocketsForUser } from '../socket.js';
+import { recordProductAnalyticsEvent } from '../lib/analytics.js';
 
 getJwtSecret();
 
@@ -147,9 +148,11 @@ router.post('/login', async (req, res) => {
 
     issueSessionCookie(req, res, token);
     const csrfToken = issueCsrfCookie(req, res);
+    const isBrowserClient =
+      String(req.headers['x-fortix-client'] || '').toLowerCase() === 'browser';
 
     res.json({
-      token,
+      ...(isBrowserClient ? { sessionMode: 'httpOnly-cookie' } : { token }),
       csrfToken,
       user: {
         id: user.id,
@@ -269,6 +272,10 @@ router.post('/verify-email', async (req, res) => {
     }
 
     await db.update(users).set({ emailVerified: true }).where(eq(users.id, consumed.userId));
+    recordProductAnalyticsEvent({
+      event: 'account_email_verified',
+      optOut: req.headers['x-fortix-analytics-opt-out'] === 'true',
+    });
     res.status(200).json({ verified: true, message: 'Email address verified successfully.' });
   } catch (error) {
     if (error instanceof z.ZodError) {

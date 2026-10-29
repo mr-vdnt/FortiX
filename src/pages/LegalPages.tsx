@@ -43,9 +43,12 @@ export function PrivacyPolicyPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-base font-bold text-white">2. How Data Is Stored & Redacted</h2>
+            <h2 className="text-base font-bold text-white">2. How Data Is Stored, Scrubbed & Measured</h2>
             <p className="text-xs sm:text-sm text-zinc-400">
-              Persistent deployments store relational records in PostgreSQL and ephemeral rate-limit/revocation state in Redis over TLS. Structured server logs automatically redact <code className="font-mono text-zinc-200">Authorization</code> headers, session cookies, <code className="font-mono text-zinc-200">X-API-Key</code> headers, passwords, and webhook secrets before output.
+              Persistent deployments store relational records in PostgreSQL (with tenant ownership enforcement and Row-Level Security policies) and ephemeral rate-limit/revocation state in Redis over TLS. Structured server logs and the built-in error tracker automatically scrub <code className="font-mono text-zinc-200">Authorization</code> headers, session cookies, <code className="font-mono text-zinc-200">X-API-Key</code> headers, query tokens, connection URIs, passwords, and webhook secrets before persistence or alerting.
+            </p>
+            <p className="text-xs sm:text-sm text-zinc-400">
+              FortiX records strictly first-party, non-identifying aggregate workflow counters (such as onboarding step completion and experiment runs) with zero third-party tracking scripts. Operators can opt out at any time under <strong>Settings → System &amp; Health</strong>.
             </p>
           </section>
 

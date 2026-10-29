@@ -82,7 +82,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         const regRes = await fetch('/api/auth/register', {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'browser' },
           body: JSON.stringify({
             email: normalizedEmail,
             password,
@@ -107,7 +107,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'browser' },
         body: JSON.stringify({ email: normalizedEmail, password }),
       });
 

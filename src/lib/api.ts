@@ -38,12 +38,32 @@ export function getCsrfToken(): string | undefined {
 }
 
 export function getActiveProjectId(): string | null {
-  return localStorage.getItem('fortix_project_id');
+  try {
+    return localStorage.getItem('fortix_project_id');
+  } catch {
+    return null;
+  }
 }
 
 export function setActiveProjectId(id: string): void {
-  localStorage.setItem('fortix_project_id', id);
+  try {
+    localStorage.setItem('fortix_project_id', id);
+  } catch {}
   window.dispatchEvent(new CustomEvent('fortix:project-switched', { detail: { projectId: id } }));
+}
+
+export function isAnalyticsOptedOut(): boolean {
+  try {
+    return localStorage.getItem('fortix_analytics_opt_out') === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setAnalyticsOptOut(optOut: boolean): void {
+  try {
+    localStorage.setItem('fortix_analytics_opt_out', optOut ? 'true' : 'false');
+  } catch {}
 }
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -61,6 +81,10 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     headers.set('X-Requested-With', 'FortiX-Control-Plane');
   }
 
+  if (isAnalyticsOptedOut()) {
+    headers.set('X-Fortix-Analytics-Opt-Out', 'true');
+  }
+
   if (projectId) {
     headers.set('X-Fortix-Project-Id', projectId);
   }
@@ -74,7 +98,6 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     }
   }
 
-  // Use relative path for same-origin requests to preserve cookie & proxy fidelity
   const targetUrl = url.startsWith('/') ? `${urlObj.pathname}${urlObj.search}` : urlObj.toString();
 
   const requestInit: RequestInit = {
@@ -91,7 +114,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
       method === 'GET' &&
       (err?.name === 'TypeError' || String(err?.message || '').toLowerCase().includes('failed to fetch'))
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 400));
       response = await fetch(targetUrl, requestInit);
     } else {
       throw err;
@@ -104,4 +127,44 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   }
 
   return response;
+}
+
+export interface ParsedApiError {
+  message: string;
+  code: string;
+  requestId?: string;
+  recoveryHint?: string;
+}
+
+export async function parseApiErrorResponse(
+  res: Response,
+  fallbackMessage = 'Request could not be completed.'
+): Promise<ParsedApiError> {
+  const reqIdHeader = res.headers.get('X-Request-ID') || undefined;
+  try {
+    const body = await res.json();
+    return {
+      message: typeof body?.error === 'string' ? body.error : fallbackMessage,
+      code: typeof body?.code === 'string' ? body.code : `HTTP_${res.status}`,
+      requestId: body?.requestId || reqIdHeader,
+      recoveryHint: typeof body?.recoveryHint === 'string' ? body.recoveryHint : undefined,
+    };
+  } catch {
+    return {
+      message: fallbackMessage,
+      code: `HTTP_${res.status}`,
+      requestId: reqIdHeader,
+    };
+  }
+}
+
+export function trackProductEvent(event: string, workspaceMode: 'demo' | 'standard' = 'standard'): void {
+  if (isAnalyticsOptedOut()) return;
+  fetchWithAuth('/api/control/system/analytics/event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event, workspaceMode }),
+  }).catch(() => {
+    // Non-blocking first-party aggregate event
+  });
 }

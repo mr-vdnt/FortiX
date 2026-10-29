@@ -7,7 +7,7 @@ import {
   Settings as SettingsIcon, Shield, User, Globe, AlertTriangle, Bell, 
   Server, Activity, Save, CheckCircle2, History, RefreshCw, Sliders, Check, FolderKanban
 } from 'lucide-react';
-import { fetchWithAuth, setCsrfToken } from '../lib/api.js';
+import { fetchWithAuth, setCsrfToken, isAnalyticsOptedOut, setAnalyticsOptOut } from '../lib/api.js';
 
 const TABS = [
   { id: 'projects', label: 'API Projects', icon: FolderKanban },
@@ -83,9 +83,12 @@ export default function Settings() {
   // Audit Logs
   const [auditLogsList, setAuditLogsList] = useState<any[]>([]);
 
-  // System Health
+  // System Health, Scrubbed Errors & First-Party Analytics
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [testStatus, setTestStatus] = useState<any>(null);
+  const [trackedErrors, setTrackedErrors] = useState<any[]>([]);
+  const [analyticsSummary, setAnalyticsSummary] = useState<any>(null);
+  const [analyticsOptOutState, setAnalyticsOptOutState] = useState<boolean>(() => isAnalyticsOptedOut());
 
   // Form feedback states
   const [saveStatus, setSaveStatus] = useState<{ domain: string; status: 'idle' | 'saving' | 'saved' | 'error'; message?: string }>({ domain: '', status: 'idle' });
@@ -119,14 +122,16 @@ export default function Settings() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [userRes, projectsRes, keysRes, settingsRes, auditRes, healthRes, testRes] = await Promise.all([
+      const [userRes, projectsRes, keysRes, settingsRes, auditRes, healthRes, testRes, errorsRes, analyticsRes] = await Promise.all([
         fetchWithAuth('/api/control/account/me'),
         fetchWithAuth('/api/control/projects'),
         fetchWithAuth(`/api/control/keys?projectId=${projectId}`),
         fetchWithAuth(`/api/control/settings?projectId=${projectId}`),
         fetchWithAuth(`/api/control/settings/audit-logs?projectId=${projectId}`),
         fetchWithAuth('/api/control/system/health'),
-        fetchWithAuth('/api/control/system/test-status')
+        fetchWithAuth('/api/control/system/test-status'),
+        fetchWithAuth('/api/control/system/errors'),
+        fetchWithAuth('/api/control/system/analytics/summary'),
       ]);
 
       if (userRes.ok) {
@@ -169,6 +174,13 @@ export default function Settings() {
       }
       if (testRes.ok) {
         setTestStatus(await testRes.json());
+      }
+      if (errorsRes.ok) {
+        const errPayload = await errorsRes.json();
+        setTrackedErrors(errPayload.errors || []);
+      }
+      if (analyticsRes.ok) {
+        setAnalyticsSummary(await analyticsRes.json());
       }
     } catch (err) {
       console.error(err);
@@ -472,8 +484,10 @@ export default function Settings() {
                       <span className="text-strong break-all">{project?.id || projectId}</span>
                     </div>
                     <div>
-                      <span className="text-muted block">Environment</span>
-                      <span className="text-emerald-400 font-bold">production-sandbox</span>
+                      <span className="text-muted block">Deployment Mode</span>
+                      <span className={`font-bold ${systemHealth?.persistenceVerified ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        {systemHealth?.deploymentMode || 'ephemeral-sandbox'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1065,7 +1079,7 @@ export default function Settings() {
                           </span>
                         </div>
                         <div className="bg-surface/60 p-3 rounded border border-subtle text-[11px] overflow-x-auto">
-                          <div className="text-muted mb-1">// Diff Recorded:</div>
+                          <div className="text-muted mb-1 uppercase tracking-wider text-[10px]">Configuration Diff</div>
                           <pre className="text-emerald-400">{JSON.stringify(log.diff?.after || log.diff, null, 2)}</pre>
                         </div>
                       </div>
@@ -1117,70 +1131,178 @@ export default function Settings() {
           {activeTab === 'system' && (
             <div className="space-y-6">
               <section className="bg-surface border border-subtle rounded-xl p-6 space-y-6">
-                <div className="flex justify-between items-center pb-3 border-b border-subtle">
+                <div className="flex flex-wrap justify-between items-center gap-3 pb-3 border-b border-subtle">
                   <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-strong">Live Subsystem Health</h3>
-                    <p className="text-xs text-muted">Real-time health telemetry across all infrastructure dependencies.</p>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-strong">Live Subsystem Health & Storage Mode</h3>
+                    <p className="text-xs text-muted">Honest runtime persistence, migration verification, and queue backing status.</p>
                   </div>
-                  <span className={`px-2.5 py-1 text-xs font-mono font-bold rounded-full uppercase ${systemHealth?.status === 'healthy' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'}`}>
-                    {systemHealth?.status || 'Active'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-                  <div className="p-4 bg-base border border-subtle rounded-xl text-center">
-                    <span className="text-muted uppercase tracking-wider block mb-1">PostgreSQL</span>
-                    <strong className={`text-sm ${systemHealth?.postgres?.status === 'healthy' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {systemHealth?.postgres?.status ? systemHealth.postgres.status.toUpperCase() : 'UNKNOWN'}
-                    </strong>
-                    {systemHealth?.postgres?.latencyMs !== undefined && (
-                      <span className="text-[10px] text-muted block mt-1">{systemHealth.postgres.latencyMs}ms query latency</span>
-                    )}
-                  </div>
-
-                  <div className="p-4 bg-base border border-subtle rounded-xl text-center">
-                    <span className="text-muted uppercase tracking-wider block mb-1">Redis Engine</span>
-                    <strong className="text-emerald-400 text-sm">{systemHealth?.redis?.status || 'Healthy'}</strong>
-                    {systemHealth?.redis?.latencyMs !== undefined && (
-                      <span className="text-[10px] text-muted block mt-1">{systemHealth.redis.latencyMs}ms ping</span>
-                    )}
-                  </div>
-
-                  <div className="p-4 bg-base border border-subtle rounded-xl text-center">
-                    <span className="text-muted uppercase tracking-wider block mb-1">Worker Queue</span>
-                    <strong className="text-emerald-400 text-sm">{systemHealth?.worker?.status || 'Healthy'}</strong>
-                    <span className="text-[10px] text-muted block mt-1">BullMQ fortix-experiments</span>
-                  </div>
-
-                  <div className="p-4 bg-base border border-subtle rounded-xl text-center">
-                    <span className="text-muted uppercase tracking-wider block mb-1">Telemetry Socket</span>
-                    <strong className="text-emerald-400 text-sm">{systemHealth?.telemetry?.status || 'Healthy'}</strong>
-                    <span className="text-[10px] text-muted block mt-1">{systemHealth?.telemetry?.eventsEmitted || 0} events emitted</span>
-                  </div>
-                </div>
-
-                {/* Automated Verified Test Status */}
-                <div className="p-4 bg-base border border-subtle rounded-xl space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className="text-emerald-400" />
-                      <strong className="text-xs text-strong uppercase tracking-wider">Automated Regression Suites Status</strong>
-                    </div>
-                    <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-mono font-bold rounded">
-                      {testStatus?.passed || 57} / {testStatus?.totalTests || 57} PASSING
+                  <div className="flex items-center gap-2 font-mono text-xs">
+                    <span className={`px-2.5 py-1 font-bold rounded uppercase ${systemHealth?.persistenceVerified ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}`}>
+                      {systemHealth?.persistenceVerified ? 'PERSISTENT VERIFIED' : 'EPHEMERAL SANDBOX'}
+                    </span>
+                    <span className={`px-2.5 py-1 font-bold rounded uppercase ${systemHealth?.status === 'healthy' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'}`}>
+                      {systemHealth?.status || 'UNKNOWN'}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-xs font-mono text-muted">
-                    <div>
-                      <span>Vitest Backend (Unit/Integration/Security/Telemetry):</span>{' '}
-                      <strong className="text-emerald-400">47 / 47 PASSED</strong>
-                    </div>
-                    <div>
-                      <span>Playwright Security & E2E Suites:</span>{' '}
-                      <strong className="text-emerald-400">10 / 10 PASSED</strong>
-                    </div>
+                </div>
+
+                {Array.isArray(systemHealth?.warnings) && systemHealth.warnings.length > 0 && (
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-1 text-xs text-amber-300">
+                    {systemHealth.warnings.map((w: string, i: number) => (
+                      <div key={i}>{w}</div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-mono tabular-nums">
+                  <div className="p-4 bg-base border border-subtle rounded-xl">
+                    <span className="text-muted uppercase tracking-wider block mb-1">PostgreSQL</span>
+                    <strong className={`text-sm block ${systemHealth?.postgres?.status === 'healthy' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {systemHealth?.postgres?.status ? systemHealth.postgres.status.toUpperCase() : 'UNKNOWN'}
+                    </strong>
+                    <span className="text-[11px] text-muted block mt-1">
+                      Mode: <strong className={systemHealth?.postgres?.storageMode === 'persistent' ? 'text-emerald-400' : 'text-amber-400'}>{systemHealth?.postgres?.storageMode || 'unknown'}</strong>
+                    </span>
+                    <span className="text-[11px] text-muted block">
+                      Migrations: {systemHealth?.postgres?.migrationStatus || 'unknown'} · {systemHealth?.postgres?.latencyMs ?? 0}ms
+                    </span>
+                  </div>
+
+                  <div className="p-4 bg-base border border-subtle rounded-xl">
+                    <span className="text-muted uppercase tracking-wider block mb-1">Redis Engine</span>
+                    <strong className={`text-sm block ${systemHealth?.redis?.status === 'healthy' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {systemHealth?.redis?.status ? systemHealth.redis.status.toUpperCase() : 'UNKNOWN'}
+                    </strong>
+                    <span className="text-[11px] text-muted block mt-1">
+                      Mode: <strong className={systemHealth?.redis?.storageMode === 'persistent' ? 'text-emerald-400' : 'text-amber-400'}>{systemHealth?.redis?.storageMode || 'unknown'}</strong>
+                    </span>
+                    <span className="text-[11px] text-muted block">
+                      Ping: {systemHealth?.redis?.latencyMs ?? 0}ms
+                    </span>
+                  </div>
+
+                  <div className="p-4 bg-base border border-subtle rounded-xl">
+                    <span className="text-muted uppercase tracking-wider block mb-1">Worker Queue</span>
+                    <strong className={`text-sm block ${systemHealth?.worker?.status === 'healthy' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {systemHealth?.worker?.status ? systemHealth.worker.status.toUpperCase() : 'UNKNOWN'}
+                    </strong>
+                    <span className="text-[11px] text-muted block mt-1">
+                      Driver: {systemHealth?.worker?.mode || 'in-process-bounded'}
+                    </span>
+                    <span className="text-[11px] text-muted block">
+                      Queue: {systemHealth?.worker?.queue || 'fortix-experiments'}
+                    </span>
+                  </div>
+
+                  <div className="p-4 bg-base border border-subtle rounded-xl">
+                    <span className="text-muted uppercase tracking-wider block mb-1">Telemetry Socket</span>
+                    <strong className="text-emerald-400 text-sm block">{(systemHealth?.telemetry?.status || 'healthy').toUpperCase()}</strong>
+                    <span className="text-[11px] text-muted block mt-1">
+                      {systemHealth?.telemetry?.eventsEmitted ?? 0} events · {systemHealth?.telemetry?.activeSockets ?? 0} sockets
+                    </span>
+                    <span className="text-[11px] text-muted block">
+                      Uptime: {systemHealth?.telemetry?.uptimeSeconds ?? 0}s
+                    </span>
                   </div>
                 </div>
+
+                {/* Artifact-Backed Test Status (Zero Hardcoded Claims) */}
+                <div className="p-4 bg-base border border-subtle rounded-xl space-y-3 tabular-nums">
+                  <div className="flex flex-wrap justify-between items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className={testStatus?.verifiedFromArtifact && testStatus?.status === 'PASSED' ? 'text-emerald-400' : 'text-amber-400'} />
+                      <strong className="text-xs text-strong uppercase tracking-wider">Persisted Regression Artifact Status</strong>
+                    </div>
+                    <span className={`px-2 py-0.5 text-xs font-mono font-bold rounded border ${testStatus?.verifiedFromArtifact && testStatus?.status === 'PASSED' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                      {testStatus?.verifiedFromArtifact
+                        ? `${testStatus.passed} / ${testStatus.totalTests} ${testStatus.status}`
+                        : 'UNVERIFIED AT RUNTIME'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono text-muted">
+                    <div>
+                      <span>Suites Verified:</span>{' '}
+                      <strong className="text-strong">
+                        {testStatus?.verifiedFromArtifact
+                          ? `${testStatus.passedSuites} / ${testStatus.totalSuites} suites`
+                          : 'No artifact recorded'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Artifact Source:</span>{' '}
+                      <strong className="text-strong">{testStatus?.source || 'Not available'}</strong>
+                    </div>
+                  </div>
+                  {testStatus?.lastVerifiedAt && (
+                    <div className="text-[11px] font-mono text-muted">
+                      Last verified run: {new Date(testStatus.lastVerifiedAt).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Privacy-Conscious First-Party Analytics & Opt-Out */}
+              <section className="bg-surface border border-subtle rounded-xl p-6 space-y-4">
+                <div className="flex flex-wrap justify-between items-center gap-4 pb-3 border-b border-subtle">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-strong">First-Party Product Analytics</h3>
+                    <p className="text-xs text-muted">Aggregate workflow counters only. Zero cookies, zero IP addresses, zero request payloads or PII.</p>
+                  </div>
+                  <label className="flex items-center gap-2.5 text-xs font-semibold text-strong cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={analyticsOptOutState}
+                      onChange={(e) => {
+                        const next = e.target.checked;
+                        setAnalyticsOptOut(next);
+                        setAnalyticsOptOutState(next);
+                      }}
+                      className="w-4 h-4 rounded text-primary border-subtle"
+                    />
+                    <span>Opt out of product analytics</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono tabular-nums">
+                  {Object.entries(analyticsSummary?.counts || {}).map(([eventName, count]) => (
+                    <div key={eventName} className="p-3 bg-base border border-subtle rounded-lg">
+                      <div className="text-[10px] text-muted truncate" title={eventName}>{eventName}</div>
+                      <div className="text-base font-bold text-strong mt-1">{String(count)}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Scrubbed Error Telemetry */}
+              <section className="bg-surface border border-subtle rounded-xl p-6 space-y-4">
+                <div className="flex justify-between items-center pb-3 border-b border-subtle">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-strong">Scrubbed Error Telemetry</h3>
+                    <p className="text-xs text-muted">Recent server and UI boundary exceptions with tokens, cookies, URIs, and credentials scrubbed.</p>
+                  </div>
+                  <span className="text-xs font-mono text-muted tabular-nums">{trackedErrors.length} Events</span>
+                </div>
+
+                {trackedErrors.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted">
+                    No unhandled server or client exceptions recorded in this runtime window.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {trackedErrors.slice(0, 15).map((ev) => (
+                      <div key={ev.id} className="p-3 bg-base border border-subtle rounded-lg text-xs font-mono space-y-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-rose-400 font-bold">{ev.code} · HTTP {ev.statusCode}</span>
+                          <span className="text-muted text-[11px]">{new Date(ev.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <div className="text-strong break-words">{ev.message}</div>
+                        <div className="text-[11px] text-muted">
+                          Source: {ev.source} {ev.path ? `· Path: ${ev.path}` : ''} {ev.requestId ? `· ReqID: ${ev.requestId}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
             </div>
           )}
