@@ -1,6 +1,6 @@
 import { db } from '../db/index.js';
 import { workflowRuns, apiKeys, experiments } from '../db/schema.js';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, like } from 'drizzle-orm';
 import { invalidateExpCache, invalidateApiKeyCache } from '../gateway/index.js';
 import { broadcast } from '../socket.js';
 
@@ -179,10 +179,15 @@ export async function reconcileAbandonedRuns(): Promise<{
           .where(and(eq(experiments.routeId, run.routeId), eq(experiments.status, 'RUNNING')));
       }
 
-      // Cleanup ephemeral run keys
+      // Cleanup ephemeral run keys (including phase-scoped [baseline]/[injection]/[recovery] keys)
       await db
         .delete(apiKeys)
-        .where(and(eq(apiKeys.projectId, run.projectId), eq(apiKeys.name, `Autonomous Run Worker (${run.id.slice(0, 10)})`)));
+        .where(
+          and(
+            eq(apiKeys.projectId, run.projectId),
+            like(apiKeys.name, `Autonomous Run Worker (${run.id.slice(0, 10)})%`)
+          )
+        );
 
       reconciledIds.push(run.id);
     } catch (err) {

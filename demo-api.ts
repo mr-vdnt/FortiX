@@ -4,6 +4,15 @@ const app = express();
 app.use(express.json({ limit: '256kb' }));
 const PORT = 3001;
 
+app.all('/', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'fortix-demo-api',
+    endpoint: '/',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'fortix-demo-api' });
 });
@@ -58,14 +67,25 @@ app.get('/api/flaky', (_req, res) => {
   }
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
+export const demoApiServer = app.listen(PORT, '0.0.0.0', () => {
   console.log(`FortiX Demo API listening on http://0.0.0.0:${PORT}`);
 });
 
-server.on('error', (err: any) => {
+demoApiServer.on('error', (err: any) => {
   if (err?.code === 'EADDRINUSE') {
     console.warn(`[Demo API] Port ${PORT} already in use, continuing...`);
   } else {
     console.error('[Demo API] Server error:', err);
   }
 });
+
+export async function closeDemoApiServer(): Promise<void> {
+  if (!demoApiServer.listening) return;
+  try {
+    demoApiServer.closeIdleConnections?.();
+    demoApiServer.closeAllConnections?.();
+  } catch {}
+  await new Promise<void>((resolve) => {
+    demoApiServer.close(() => resolve());
+  });
+}

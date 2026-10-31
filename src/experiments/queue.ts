@@ -1,12 +1,12 @@
 import { Queue } from 'bullmq';
-import { redisConnection, isRealRedisActive, getBullMqConnectionOptions } from '../redis.js';
+import { createDedicatedRedisClient, isRealRedisActive, getBullMqConnectionOptions } from '../redis.js';
 import { runExperimentLogic } from './worker.js';
 import { registerQueue, recordDlqFailure } from '../lib/dlq.js';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../lib/logger.js';
 
 export const experimentQueue = new Queue('experiments', {
-  connection: (isRealRedisActive ? getBullMqConnectionOptions() : redisConnection) as any,
+  connection: (isRealRedisActive ? getBullMqConnectionOptions() : createDedicatedRedisClient()) as any,
 });
 
 registerQueue('experiments', experimentQueue);
@@ -69,4 +69,14 @@ export async function enqueueExperiment(experimentId: string) {
     logger.warn({ err, experimentId }, '[Experiments] BullMQ add failed, falling back to bounded local runner');
     dispatchFallbackExperimentRunner(experimentId);
   }
+}
+
+let isExperimentQueueClosed = false;
+
+export async function closeExperimentQueue(): Promise<void> {
+  if (isExperimentQueueClosed) return;
+  isExperimentQueueClosed = true;
+  try {
+    await experimentQueue.close();
+  } catch {}
 }

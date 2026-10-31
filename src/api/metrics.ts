@@ -1,34 +1,38 @@
 import express from 'express';
 import { requireProjectOwnership } from './projects.js';
 import { db } from '../db/index.js';
-import { metricLogs, apiRoutes, experiments } from '../db/schema.js';
+import { metricLogs, apiRoutes, experiments, verifications } from '../db/schema.js';
 import { eq, inArray, desc } from 'drizzle-orm';
 import { calculateScores } from '../scoring/index.js';
+import { percentile } from '../lib/math.js';
+import {
+  computePhaseMetrics,
+  MIN_PERCENTILE_SAMPLES,
+  normalizeVerdict,
+  PhaseWindowMetrics,
+} from '../verification/domain.js';
 
 const router = express.Router();
-
-import { percentile } from '../lib/math.js';
 
 router.get('/', requireProjectOwnership, async (req, res) => {
   const projectId = req.query.projectId as string;
   try {
     const routes = await db.select({ id: apiRoutes.id }).from(apiRoutes).where(eq(apiRoutes.projectId, projectId));
-    const routeIds = routes.map(r => r.id);
+    const routeIds = routes.map((r) => r.id);
     if (routeIds.length === 0) return res.json([]);
 
-    // Fetch the raw telemetry events
-    const metrics = await db.select().from(metricLogs)
+    const metrics = await db
+      .select()
+      .from(metricLogs)
       .where(inArray(metricLogs.routeId, routeIds))
       .orderBy(desc(metricLogs.timestamp))
       .limit(2000);
 
     if (metrics.length === 0) return res.json([]);
 
-    // Aggregate into 1-second buckets
     const buckets = new Map<string, typeof metrics>();
-    
-    metrics.forEach(m => {
-      // Normalize timestamp to the nearest second
+
+    metrics.forEach((m) => {
       const date = new Date(m.timestamp);
       date.setMilliseconds(0);
       const bucketKey = date.toISOString();
@@ -36,21 +40,22 @@ router.get('/', requireProjectOwnership, async (req, res) => {
       buckets.get(bucketKey)!.push(m);
     });
 
-    const formatted = Array.from(buckets.entries()).map(([timeKey, items]) => {
-      const latencies = items.map(i => i.latencyMs);
-      const errorCount = items.filter(i => i.statusCode >= 400).length;
-      
-      return {
-        timestamp: new Date(timeKey).toLocaleTimeString(),
-        latency: percentile(latencies, 0.95), // P95 Latency for this window
-        p50: percentile(latencies, 0.50),     // P50 Latency for this window
-        errorRate: Math.round((errorCount / items.length) * 100),
-        requestRate: items.length,            // Throughput (req/sec)
-        activeFaults: items.some(i => i.experimentId) ? 1 : 0
-      };
-    }).reverse(); // Latest buckets at the end for the UI chart
+    const formatted = Array.from(buckets.entries())
+      .map(([timeKey, items]) => {
+        const latencies = items.map((i) => i.latencyMs);
+        const errorCount = items.filter((i) => i.statusCode >= 400).length;
 
-    // Return the latest 60 buckets (1 minute of live data)
+        return {
+          timestamp: new Date(timeKey).toLocaleTimeString(),
+          latency: percentile(latencies, 0.95),
+          p50: percentile(latencies, 0.50),
+          errorRate: Math.round((errorCount / items.length) * 100),
+          requestRate: items.length,
+          activeFaults: items.some((i) => i.experimentId) ? 1 : 0,
+        };
+      })
+      .reverse();
+
     res.json(formatted.slice(-60));
   } catch (error) {
     console.error('[Metrics API] Error aggregating metrics:', error);
@@ -73,109 +78,131 @@ router.get('/resilience-summary', requireProjectOwnership, async (req, res) => {
   const projectId = req.query.projectId as string;
   try {
     const routes = await db.select({ id: apiRoutes.id }).from(apiRoutes).where(eq(apiRoutes.projectId, projectId));
-    const routeIds = routes.map(r => r.id);
+    const routeIds = routes.map((r) => r.id);
 
     if (routeIds.length === 0) {
       return res.json({
         hasExperiments: false,
         globalScore: 100,
-        availability: 100,
-        mttrSeconds: 0,
-        faultContainment: 100,
-        gatewayOverhead: { directMs: 85, fortixMs: 95, overheadMs: 10 },
-        liveTelemetry: { p50Ms: 0, p95Ms: 0, errorRate: 0 },
-        comparison: null
+        availability: null,
+        mttrSeconds: null,
+        faultContainment: null,
+        gatewayOverhead: { directMs: null, fortixMs: null, overheadMs: null },
+        liveTelemetry: { p50Ms: null, p95Ms: null, errorRate: null, sampleCount: 0 },
+        comparison: null,
       });
     }
 
     const scores = await calculateScores(projectId);
 
-    // Latest experiment for project
-    const [latestExp] = await db.select()
+    const [latestExp] = await db
+      .select()
       .from(experiments)
       .where(inArray(experiments.routeId, routeIds))
       .orderBy(desc(experiments.createdAt))
       .limit(1);
 
-    // Metrics for routes
-    const allMetrics = await db.select()
+    const allMetrics = await db
+      .select()
       .from(metricLogs)
       .where(inArray(metricLogs.routeId, routeIds))
       .orderBy(desc(metricLogs.timestamp))
       .limit(1000);
 
-    const latencies = allMetrics.map(m => m.latencyMs);
-    const p50 = latencies.length > 0 ? percentile(latencies, 0.50) : 85;
-    const p95 = latencies.length > 0 ? percentile(latencies, 0.95) : 120;
-    const errors = allMetrics.filter(m => m.statusCode >= 500).length;
-    const errorRate = allMetrics.length > 0 ? Math.round((errors / allMetrics.length) * 1000) / 10 : 0;
-    const availability = allMetrics.length > 0 ? Math.round(((allMetrics.length - errors) / allMetrics.length) * 1000) / 10 : 99.9;
+    const liveWindow = computePhaseMetrics('INJECTION', allMetrics, {
+      minPercentileSamples: MIN_PERCENTILE_SAMPLES,
+    });
+
+    const p50 = liveWindow.percentiles?.p50 ?? null;
+    const p95 = liveWindow.percentiles?.p95 ?? null;
+    const errorRate = liveWindow.errorRatePercent;
+    const availability = liveWindow.availabilityPercent;
 
     let comparison = null;
-    let mttrSeconds = 2.4;
-    let faultContainment = 92.5;
+    let mttrSeconds: number | null = null;
+    let faultContainment: number | null = null;
 
     if (latestExp) {
-      const expMetrics = allMetrics.filter(m => m.experimentId === latestExp.id);
-      const baselineMetrics = allMetrics.filter(m => !m.experimentId && new Date(m.timestamp) < new Date(latestExp.createdAt));
-      const recoveryMetrics = allMetrics.filter(m => !m.experimentId && latestExp.completedAt && new Date(m.timestamp) > new Date(latestExp.completedAt));
+      const [latestVerif] = await db
+        .select()
+        .from(verifications)
+        .where(eq(verifications.experimentId, latestExp.id))
+        .orderBy(desc(verifications.createdAt))
+        .limit(1);
 
-      const getP95 = (arr: typeof allMetrics, fallback: number) => 
-        arr.length > 0 ? percentile(arr.map(m => m.latencyMs), 0.95) : fallback;
-      const getErrorRate = (arr: typeof allMetrics, fallback: number) => {
-        if (arr.length === 0) return fallback;
-        return Math.round((arr.filter(m => m.statusCode >= 400).length / arr.length) * 1000) / 10;
+      const observedObj = (latestVerif?.observed || {}) as Record<string, any>;
+      const recordedPhases = (observedObj.phases || {}) as {
+        baseline?: PhaseWindowMetrics | null;
+        injection?: PhaseWindowMetrics | null;
+        recovery?: PhaseWindowMetrics | null;
       };
-      const getAvail = (arr: typeof allMetrics, fallback: number) => {
-        if (arr.length === 0) return fallback;
-        return Math.round((arr.filter(m => m.statusCode < 500).length / arr.length) * 1000) / 10;
-      };
 
-      const baselineP95 = getP95(baselineMetrics, Math.max(70, Math.round(p95 * 0.85)));
-      const faultP95 = getP95(expMetrics, Math.round(baselineP95 * 4.2));
-      const recoveryP95 = getP95(recoveryMetrics, Math.round(baselineP95 * 1.08));
+      const expMetricsRaw = allMetrics.filter((m) => m.experimentId === latestExp.id);
+      const injectionPhase: PhaseWindowMetrics =
+        recordedPhases.injection ||
+        computePhaseMetrics('INJECTION', expMetricsRaw, { minPercentileSamples: MIN_PERCENTILE_SAMPLES });
+      const baselinePhase: PhaseWindowMetrics | null = recordedPhases.baseline ?? null;
+      const recoveryPhase: PhaseWindowMetrics | null = recordedPhases.recovery ?? null;
 
-      const baselineErr = getErrorRate(baselineMetrics, 0.2);
-      const faultErr = getErrorRate(expMetrics, 14.5);
-      const recoveryErr = getErrorRate(recoveryMetrics, 0.4);
-
-      const baselineAvail = getAvail(baselineMetrics, 99.8);
-      const faultAvail = getAvail(expMetrics, 85.5);
-      const recoveryAvail = getAvail(recoveryMetrics, 99.6);
-
-      if (latestExp.startedAt && latestExp.completedAt) {
-        mttrSeconds = Math.max(1.2, Math.round(((new Date(latestExp.completedAt).getTime() - new Date(latestExp.startedAt).getTime()) / 1000) * 10) / 10);
+      if (typeof observedObj.recoveryDurationMs === 'number' && observedObj.recoveryDurationMs >= 0) {
+        mttrSeconds = Math.round((observedObj.recoveryDurationMs / 1000) * 100) / 100;
       }
 
-      faultContainment = Math.max(60, Math.min(99.5, Math.round((100 - faultErr * 0.7) * 10) / 10));
+      if (injectionPhase.observedCount > 0 && injectionPhase.availabilityPercent !== null) {
+        faultContainment = injectionPhase.availabilityPercent;
+      }
+
+      const baselineLat = baselinePhase?.percentiles?.p95 ?? baselinePhase?.avgLatencyMs ?? null;
+      const faultLat = injectionPhase.percentiles?.p95 ?? injectionPhase.avgLatencyMs ?? null;
+      const recoveryLat = recoveryPhase?.percentiles?.p95 ?? recoveryPhase?.avgLatencyMs ?? null;
+
+      const baselineErr = baselinePhase?.errorRatePercent ?? null;
+      const faultErr = injectionPhase.errorRatePercent ?? null;
+      const recoveryErr = recoveryPhase?.errorRatePercent ?? null;
+
+      const baselineAvail = baselinePhase?.availabilityPercent ?? null;
+      const faultAvail = injectionPhase.availabilityPercent ?? null;
+      const recoveryAvail = recoveryPhase?.availabilityPercent ?? null;
+
+      const latencyDelta =
+        baselineLat !== null && faultLat !== null && baselineLat > 0
+          ? `${faultLat >= baselineLat ? '+' : ''}${Math.round(((faultLat - baselineLat) / baselineLat) * 100)}%`
+          : 'INSUFFICIENT_DATA';
+
+      const errDelta =
+        baselineErr !== null && faultErr !== null
+          ? `${faultErr >= baselineErr ? '+' : ''}${Math.round((faultErr - baselineErr) * 10) / 10} pp`
+          : 'INSUFFICIENT_DATA';
+
+      const availDelta =
+        baselineAvail !== null && faultAvail !== null
+          ? `${faultAvail >= baselineAvail ? '+' : ''}${Math.round((faultAvail - baselineAvail) * 10) / 10} pp`
+          : 'INSUFFICIENT_DATA';
 
       comparison = {
         experimentName: `${latestExp.type.toUpperCase()} Experiment`,
         status: latestExp.status,
+        verdict: latestVerif ? normalizeVerdict(latestVerif.verdict) : 'INCONCLUSIVE',
         latency: {
-          baseline: `${baselineP95} ms`,
-          fault: `${faultP95} ms`,
-          recovery: `${recoveryP95} ms`,
-          delta: `+${Math.round(((faultP95 - baselineP95) / (baselineP95 || 1)) * 100)}%`
+          baseline: baselineLat !== null ? `${baselineLat} ms` : 'INSUFFICIENT_DATA',
+          fault: faultLat !== null ? `${faultLat} ms` : 'INSUFFICIENT_DATA',
+          recovery: recoveryLat !== null ? `${recoveryLat} ms` : 'INSUFFICIENT_DATA',
+          delta: latencyDelta,
         },
         errorRate: {
-          baseline: `${baselineErr}%`,
-          fault: `${faultErr}%`,
-          recovery: `${recoveryErr}%`,
-          delta: `+${Math.round((faultErr - baselineErr) * 10) / 10} pp`
+          baseline: baselineErr !== null ? `${baselineErr}%` : 'INSUFFICIENT_DATA',
+          fault: faultErr !== null ? `${faultErr}%` : 'INSUFFICIENT_DATA',
+          recovery: recoveryErr !== null ? `${recoveryErr}%` : 'INSUFFICIENT_DATA',
+          delta: errDelta,
         },
         availability: {
-          baseline: `${baselineAvail}%`,
-          fault: `${faultAvail}%`,
-          recovery: `${recoveryAvail}%`,
-          delta: `-${Math.round((baselineAvail - faultAvail) * 10) / 10} pp`
-        }
+          baseline: baselineAvail !== null ? `${baselineAvail}%` : 'INSUFFICIENT_DATA',
+          fault: faultAvail !== null ? `${faultAvail}%` : 'INSUFFICIENT_DATA',
+          recovery: recoveryAvail !== null ? `${recoveryAvail}%` : 'INSUFFICIENT_DATA',
+          delta: availDelta,
+        },
       };
     }
-
-    const directMs = Math.max(20, Math.round(p50 * 0.85));
-    const fortixMs = Math.max(directMs + 8, p50);
-    const overheadMs = fortixMs - directMs;
 
     res.json({
       hasExperiments: !!latestExp,
@@ -183,9 +210,18 @@ router.get('/resilience-summary', requireProjectOwnership, async (req, res) => {
       availability,
       mttrSeconds,
       faultContainment,
-      gatewayOverhead: { directMs, fortixMs, overheadMs },
-      liveTelemetry: { p50Ms: p50, p95Ms: p95, errorRate },
-      comparison
+      gatewayOverhead: {
+        directMs: null,
+        fortixMs: p50,
+        overheadMs: null,
+      },
+      liveTelemetry: {
+        p50Ms: p50,
+        p95Ms: p95,
+        errorRate,
+        sampleCount: liveWindow.observedCount,
+      },
+      comparison,
     });
   } catch (error) {
     console.error('[Metrics API] Error in resilience summary:', error);

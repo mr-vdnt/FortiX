@@ -35,23 +35,27 @@ interface AutonomousRun {
     details?: any;
   }>;
   deterministicVerdict?: {
+    verdict?: 'PASS' | 'FAIL' | 'INCONCLUSIVE';
     passed: boolean;
     score: number;
     checks: Array<{
       name: string;
       category: string;
+      status?: 'PASS' | 'FAIL' | 'INCONCLUSIVE';
       passed: boolean;
       observed: string | number;
       threshold: string | number;
       evidenceRef: string;
+      reason?: string;
     }>;
     latencyPercentiles: {
       p50: number;
       p90: number;
       p95: number;
       p99: number;
-    };
-    errorRate: number;
+    } | null;
+    errorRate: number | null;
+    recoveryDurationMs?: number | null;
     totalDurationMs: number;
   };
   aiAnalysis?: {
@@ -452,65 +456,110 @@ export default function Verifications() {
           </div>
 
           {/* REAL TELEMETRY & DETERMINISTIC VERDICT */}
-          {activeRun.deterministicVerdict && (
-            <div className="my-6 p-4 rounded-xl bg-base border border-subtle">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck size={18} className={activeRun.deterministicVerdict.passed ? 'text-green-400' : 'text-red-400'} />
-                  <span className="text-xs font-bold uppercase tracking-wider text-strong">
-                    Deterministic Source of Truth (Calculated from Real Telemetry)
-                  </span>
-                </div>
-                <div className="text-xl font-mono font-bold text-strong">
-                  Score: <span className={activeRun.deterministicVerdict.passed ? 'text-green-400' : 'text-red-400'}>{activeRun.deterministicVerdict.score}</span> / 100
-                </div>
-              </div>
+          {activeRun.deterministicVerdict && (() => {
+            const resolvedVerdict: 'PASS' | 'FAIL' | 'INCONCLUSIVE' =
+              activeRun.deterministicVerdict.verdict ||
+              (activeRun.deterministicVerdict.passed ? 'PASS' : 'FAIL');
+            const verdictColorClass =
+              resolvedVerdict === 'PASS'
+                ? 'text-green-400'
+                : resolvedVerdict === 'INCONCLUSIVE'
+                ? 'text-amber-400'
+                : 'text-red-400';
+            const verdictBadgeClass =
+              resolvedVerdict === 'PASS'
+                ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                : resolvedVerdict === 'INCONCLUSIVE'
+                ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                : 'bg-red-500/10 border-red-500/30 text-red-400';
 
-              {/* Latency & Metrics Bar */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4 text-center">
-                <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
-                  <div className="text-[10px] text-muted uppercase font-bold">Total Requests</div>
-                  <div className="text-base font-mono font-bold text-strong">{activeRun.evidenceSummary?.totalRequests || 0}</div>
+            return (
+              <div className="my-6 p-4 rounded-xl bg-base border border-subtle">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={18} className={verdictColorClass} />
+                    <span className="text-xs font-bold uppercase tracking-wider text-strong">
+                      Deterministic Source of Truth (Calculated from Real Telemetry)
+                    </span>
+                    <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded border ${verdictBadgeClass}`}>
+                      {resolvedVerdict}
+                    </span>
+                  </div>
+                  <div className="text-xl font-mono font-bold text-strong">
+                    Score: <span className={verdictColorClass}>{activeRun.deterministicVerdict.score}</span> / 100
+                  </div>
                 </div>
-                <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
-                  <div className="text-[10px] text-muted uppercase font-bold">2xx Success</div>
-                  <div className="text-base font-mono font-bold text-green-400">{activeRun.evidenceSummary?.passedRequests || 0}</div>
-                </div>
-                <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
-                  <div className="text-[10px] text-muted uppercase font-bold">429 Rate-Limited</div>
-                  <div className="text-base font-mono font-bold text-yellow-400">{activeRun.evidenceSummary?.blockedRequests || 0}</div>
-                </div>
-                <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
-                  <div className="text-[10px] text-muted uppercase font-bold">5xx Errors</div>
-                  <div className="text-base font-mono font-bold text-red-400">{activeRun.evidenceSummary?.errorRequests || 0}</div>
-                </div>
-                <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
-                  <div className="text-[10px] text-muted uppercase font-bold">P95 Latency</div>
-                  <div className="text-base font-mono font-bold text-primary">{activeRun.deterministicVerdict.latencyPercentiles.p95}ms</div>
-                </div>
-                <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
-                  <div className="text-[10px] text-muted uppercase font-bold">Threats Blocked</div>
-                  <div className="text-base font-mono font-bold text-green-400">{activeRun.evidenceSummary?.securityEventsCount || 0}</div>
-                </div>
-              </div>
 
-              {/* Individual Checks Table */}
-              <div className="space-y-2">
-                {activeRun.deterministicVerdict.checks.map((chk, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-surface/50 border border-subtle/40">
-                    <div className="flex items-center gap-2">
-                      {chk.passed ? <CheckCircle size={14} className="text-green-400" /> : <XCircle size={14} className="text-red-400" />}
-                      <span className="font-semibold text-base-text">{chk.name}</span>
-                    </div>
-                    <div className="flex items-center gap-4 font-mono text-[11px]">
-                      <span className="text-muted">Observed: <strong className="text-strong">{chk.observed}</strong></span>
-                      <span className="text-muted">Threshold: {chk.threshold}</span>
+                {/* Latency & Metrics Bar */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4 text-center">
+                  <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
+                    <div className="text-[10px] text-muted uppercase font-bold">Total Requests</div>
+                    <div className="text-base font-mono font-bold text-strong">{activeRun.evidenceSummary?.totalRequests || 0}</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
+                    <div className="text-[10px] text-muted uppercase font-bold">2xx Success</div>
+                    <div className="text-base font-mono font-bold text-green-400">{activeRun.evidenceSummary?.passedRequests || 0}</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
+                    <div className="text-[10px] text-muted uppercase font-bold">429 Rate-Limited</div>
+                    <div className="text-base font-mono font-bold text-yellow-400">{activeRun.evidenceSummary?.blockedRequests || 0}</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
+                    <div className="text-[10px] text-muted uppercase font-bold">5xx Errors</div>
+                    <div className="text-base font-mono font-bold text-red-400">{activeRun.evidenceSummary?.errorRequests || 0}</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
+                    <div className="text-[10px] text-muted uppercase font-bold">P95 Latency</div>
+                    <div className="text-base font-mono font-bold text-primary">
+                      {activeRun.deterministicVerdict.latencyPercentiles
+                        ? `${activeRun.deterministicVerdict.latencyPercentiles.p95}ms`
+                        : 'N/A'}
                     </div>
                   </div>
-                ))}
+                  <div className="p-2.5 rounded-lg bg-surface border border-subtle/70">
+                    <div className="text-[10px] text-muted uppercase font-bold">Threats Blocked</div>
+                    <div className="text-base font-mono font-bold text-green-400">{activeRun.evidenceSummary?.securityEventsCount || 0}</div>
+                  </div>
+                </div>
+
+                {/* Individual Checks Table */}
+                <div className="space-y-2">
+                  {activeRun.deterministicVerdict.checks.map((chk, i) => {
+                    const chkStatus = chk.status || (chk.passed ? 'PASS' : 'FAIL');
+                    return (
+                      <div key={i} className="flex items-center justify-between text-xs py-1.5 px-3 rounded-lg bg-surface/50 border border-subtle/40">
+                        <div className="flex items-center gap-2">
+                          {chkStatus === 'PASS' ? (
+                            <CheckCircle size={14} className="text-green-400" />
+                          ) : chkStatus === 'INCONCLUSIVE' ? (
+                            <AlertTriangle size={14} className="text-amber-400" />
+                          ) : (
+                            <XCircle size={14} className="text-red-400" />
+                          )}
+                          <span className="font-semibold text-base-text">{chk.name}</span>
+                          <span
+                            className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded uppercase ${
+                              chkStatus === 'PASS'
+                                ? 'bg-green-500/10 text-green-400'
+                                : chkStatus === 'INCONCLUSIVE'
+                                ? 'bg-amber-500/10 text-amber-400'
+                                : 'bg-red-500/10 text-red-400'
+                            }`}
+                          >
+                            {chkStatus}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 font-mono text-[11px]">
+                          <span className="text-muted">Observed: <strong className="text-strong">{chk.observed}</strong></span>
+                          <span className="text-muted">Threshold: {chk.threshold}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* AI-ASSISTED ADVISORY LAYER */}
           {activeRun.aiAnalysis && (
@@ -674,7 +723,9 @@ export default function Verifications() {
                       </span>
                     </td>
                     <td className="py-2.5 px-3 font-bold">
-                      {r.deterministicVerdict ? `${r.deterministicVerdict.score}/100` : '—'}
+                      {r.deterministicVerdict
+                        ? `${r.deterministicVerdict.verdict || (r.deterministicVerdict.passed ? 'PASS' : 'FAIL')} (${r.deterministicVerdict.score}/100)`
+                        : '—'}
                     </td>
                     <td className="py-2.5 px-3 text-green-400">{r.cleanupStatus}</td>
                     <td className="py-2.5 px-3 text-muted text-[11px]">{new Date(r.createdAt).toLocaleTimeString()}</td>

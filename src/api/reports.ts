@@ -5,6 +5,7 @@ import { projects, organizations, verifications, experiments, apiRoutes } from '
 import { eq, and } from 'drizzle-orm';
 import PDFDocument from 'pdfkit';
 import { artifactStorage } from '../storage/index.js';
+import { normalizeVerdict } from '../verification/domain.js';
 
 const router = Router();
 
@@ -35,7 +36,9 @@ export function buildPdfBuffer(title: string, metadata: Record<string, string>, 
 
     doc.fontSize(16).text('Verification Assertions & Findings', { underline: true });
     doc.moveDown();
-    doc.fontSize(11).text(content || 'All security policies and chaos resilience assertions passed.');
+    doc
+      .fontSize(11)
+      .text(content || 'INCONCLUSIVE: No verified telemetry assertions were supplied for this report.');
 
     doc.end();
   });
@@ -64,10 +67,21 @@ router.post('/control/reports/:verificationId', authenticate, async (req, res) =
 
     // Verify that if verificationId references a real verification row in DB, it belongs to this project
     let existingVerificationOwned = false;
+    let persistedVerification: {
+      id: string;
+      verdict: string;
+      expected: unknown;
+      observed: unknown;
+      createdAt: Date;
+    } | null = null;
     try {
       const [existingVerif] = await db
         .select({
           id: verifications.id,
+          verdict: verifications.verdict,
+          expected: verifications.expected,
+          observed: verifications.observed,
+          createdAt: verifications.createdAt,
           routeProjectId: apiRoutes.projectId,
         })
         .from(verifications)
@@ -81,6 +95,7 @@ router.post('/control/reports/:verificationId', authenticate, async (req, res) =
           return res.status(403).json({ error: 'Forbidden: Verification record belongs to another project' });
         }
         existingVerificationOwned = true;
+        persistedVerification = existingVerif;
       }
     } catch {
       // Ad-hoc verification ID not present in verifications table
@@ -89,16 +104,35 @@ router.post('/control/reports/:verificationId', authenticate, async (req, res) =
     const safeVerificationToken = verificationId.replace(/[^a-zA-Z0-9._-]/g, '_') || 'report';
     const filename = sanitizeAttachmentFilename(`FortiX-Report-${safeVerificationToken}.pdf`);
 
+    const resolvedVerdict = persistedVerification ? normalizeVerdict(persistedVerification.verdict) : 'INCONCLUSIVE';
+    const reportBody =
+      typeof details === 'string' && details.trim().length > 0
+        ? details.slice(0, 50000)
+        : persistedVerification
+        ? JSON.stringify(
+            {
+              verificationId: persistedVerification.id,
+              verdict: resolvedVerdict,
+              createdAt: persistedVerification.createdAt,
+              expected: persistedVerification.expected,
+              observed: persistedVerification.observed,
+            },
+            null,
+            2
+          ).slice(0, 50000)
+        : 'INCONCLUSIVE (UNVERIFIED_SNAPSHOT): No persisted verification record or telemetry evidence payload was supplied.';
+
     // 1. Generate PDF in memory buffer
     const pdfBuffer = await buildPdfBuffer(
       'FortiX Resilience & Verification Evidence',
       {
         'Verification ID': verificationId.slice(0, 128),
         'Project Name': project.name,
+        'Verdict': persistedVerification ? resolvedVerdict : 'AD_HOC_SNAPSHOT',
         'Generated At': new Date().toISOString(),
         'Engine': 'FortiX Resilience Verification Engine v2.0',
       },
-      typeof details === 'string' ? details.slice(0, 50000) : 'Evidence executed, chaos injected, resilience verified.'
+      reportBody
     );
 
     // 2. Persist to Artifact Storage (Local / S3)

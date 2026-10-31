@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { exec, execSync } from 'child_process';
 import { logger } from './logger.js';
 import { invalidateApiKeyCache } from '../gateway/index.js';
-import { sharedRedisMock, resolvedRedisUrl, isRealRedisActive } from '../redis.js';
+import { createDedicatedRedisClient, resolvedRedisUrl, isRealRedisActive } from '../redis.js';
 
 import { apiKeyCacheInvalidationsTotal } from './metrics.js';
 
@@ -37,10 +37,7 @@ let isSubscriberInitialized = false;
 export function getPublisher(): Redis {
   if (!publisherClient) {
     if (!isRealRedisActive && process.env.USE_REAL_REDIS !== 'true') {
-      publisherClient = (sharedRedisMock as any).createConnectedClient 
-        ? (sharedRedisMock as any).createConnectedClient() 
-        : new (sharedRedisMock.constructor as any)();
-      (publisherClient as any).status = 'ready';
+      publisherClient = createDedicatedRedisClient();
       return publisherClient;
     }
 
@@ -85,11 +82,7 @@ export function setupKeyRevocationSubscriber(customInvalidate?: (keyId?: string,
   const invalidate = customInvalidate || invalidateApiKeyCache;
 
   if (!isRealRedisActive && process.env.USE_REAL_REDIS !== 'true') {
-    const sub = (sharedRedisMock as any).createConnectedClient 
-      ? (sharedRedisMock as any).createConnectedClient() 
-      : sharedRedisMock;
-    (sub as any).status = 'ready';
-    subscriberClient = sub as any;
+    subscriberClient = createDedicatedRedisClient();
 
     subscriberClient!.on('message', (channel: string, message: string) => {
       if (channel !== REDIS_KEY_REVOCATION_CHANNEL) return;

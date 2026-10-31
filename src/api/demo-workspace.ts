@@ -224,7 +224,7 @@ router.post('/reset', async (req: AuthRequest, res) => {
         p95LatencyMs: 268,
         errorRatePercent: 0,
       },
-      verdict: 'PASSED',
+      verdict: 'PASS',
     });
 
     recordProductAnalyticsEvent({

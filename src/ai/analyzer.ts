@@ -13,11 +13,12 @@ export interface RunEvidenceContext {
     p90: number;
     p95: number;
     p99: number;
-  };
+  } | null;
   threatEventsCount: number;
   observedThreats: string[];
   deterministicScore: number;
   deterministicPassed: boolean;
+  deterministicVerdict?: 'PASS' | 'FAIL' | 'INCONCLUSIVE';
   recoveryStatus: string;
   policyViolations: string[];
 }

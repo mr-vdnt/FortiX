@@ -84,8 +84,8 @@ export function invalidateApiKeyCache(keyId?: string, projectId?: string) {
   }
 }
 
-// 2-second cache for active experiments per route
-const expCache = new Map<string, { exps: any[]; cachedAt: number }>();
+// 2-second cache for route experiments (known IDs for FK-safe metric correlation + RUNNING fault set)
+const expCache = new Map<string, { allIds: Set<string>; exps: any[]; cachedAt: number }>();
 
 export function invalidateExpCache(routeId?: string) {
   if (!routeId) {
@@ -99,6 +99,7 @@ interface ProxyRequestContext {
   route: typeof apiRoutes.$inferSelect;
   routeId: string;
   requestId: string;
+  experimentId: string | null;
   startHrTime: bigint;
   upstreamTimeoutMs: number;
   resolvedTargetUrl: string;
@@ -193,7 +194,7 @@ function createSharedGatewayProxy(agent: http.Agent) {
           id: logId,
           routeId: ctx.routeId,
           requestId: ctx.requestId,
-          experimentId: (req.headers['x-experiment-id'] as string) || (req.headers['x-fortix-run-id'] as string) || null,
+          experimentId: ctx.experimentId,
           latencyMs: Math.round(durationMs),
           statusCode,
         });
@@ -236,7 +237,7 @@ function createSharedGatewayProxy(agent: http.Agent) {
             id: logId,
             routeId: ctx.routeId,
             requestId: ctx.requestId,
-            experimentId: (req.headers['x-experiment-id'] as string) || (req.headers['x-fortix-run-id'] as string) || null,
+            experimentId: ctx.experimentId,
             latencyMs: Math.round(durationMs),
             statusCode: 403,
           });
@@ -271,7 +272,7 @@ function createSharedGatewayProxy(agent: http.Agent) {
           id: logId,
           routeId: ctx.routeId,
           requestId: ctx.requestId,
-          experimentId: (req.headers['x-experiment-id'] as string) || (req.headers['x-fortix-run-id'] as string) || null,
+          experimentId: ctx.experimentId,
           latencyMs: Math.round(durationMs),
           statusCode,
         });
@@ -312,7 +313,12 @@ export function setupGateway(app: Express) {
   app.use('/proxy/:routeId', async (req: Request, res: Response, next: NextFunction) => {
     const routeId = req.params.routeId as string;
     const startHrTime = process.hrtime.bigint();
-    const requestId = uuidv4();
+    const rawProbeId = req.headers['x-fortix-probe-id'];
+    const requestId =
+      typeof rawProbeId === 'string' && /^[a-zA-Z0-9._:-]{8,80}$/.test(rawProbeId)
+        ? rawProbeId
+        : uuidv4();
+    res.setHeader('X-FortiX-Request-Id', requestId);
 
     try {
       // 1. Resolve Route
@@ -331,6 +337,22 @@ export function setupGateway(app: Express) {
       const parts = rawKey.split('_');
       // Expected: fx_{env}_{keyId}_{secret}
       if (parts.length !== 4 || parts[0] !== 'fx') {
+        const eventId = uuidv4();
+        enqueueSecurityEvent({
+          id: eventId,
+          routeId,
+          requestId,
+          type: 'INVALID_API_KEY',
+          severity: 'MEDIUM',
+          action: 'blocked',
+          sourceIp: req.ip || 'unknown',
+        });
+        broadcast(route.projectId, 'security:event', {
+          id: eventId,
+          routeId,
+          type: 'INVALID_API_KEY',
+          severity: 'MEDIUM',
+        });
         return res.status(401).json({ error: 'Malformed API Key' });
       }
 
@@ -370,6 +392,7 @@ export function setupGateway(app: Express) {
         enqueueSecurityEvent({
           id: eventId,
           routeId,
+          requestId,
           type: 'INVALID_API_KEY',
           severity: 'MEDIUM',
           action: 'blocked',
@@ -385,6 +408,27 @@ export function setupGateway(app: Express) {
       }
 
       const apiKeyId = validKey.id;
+      const rawHeaderExpId =
+        typeof req.headers['x-experiment-id'] === 'string' ? req.headers['x-experiment-id'].trim() : '';
+
+      let routeExpEntry = expCache.get(routeId);
+      if (
+        !routeExpEntry ||
+        Date.now() - routeExpEntry.cachedAt >= 2000 ||
+        (rawHeaderExpId && !routeExpEntry.allIds.has(rawHeaderExpId))
+      ) {
+        const routeExps = await db.select().from(experiments).where(eq(experiments.routeId, routeId));
+        routeExpEntry = {
+          allIds: new Set(routeExps.map((e) => e.id)),
+          exps: routeExps.filter((e) => e.status === 'RUNNING'),
+          cachedAt: Date.now(),
+        };
+        expCache.set(routeId, routeExpEntry);
+      }
+
+      // Only attach experimentId when it belongs to an actual experiment on this route (prevents FK errors & spoofing)
+      const experimentCorrelationId =
+        rawHeaderExpId && routeExpEntry.allIds.has(rawHeaderExpId) ? rawHeaderExpId : null;
 
       // 4. Route-Level Security Policy Lookup (WAF & Deep Parameter SSRF Inspection)
       const [routePolicy] = await db.select().from(securityPolicies).where(eq(securityPolicies.routeId, routeId)).limit(1);
@@ -409,10 +453,19 @@ export function setupGateway(app: Express) {
             enqueueSecurityEvent({
               id: eventId,
               routeId,
+              requestId,
               type: 'SSRF_ATTEMPT',
               severity: 'HIGH',
               action: 'blocked',
               sourceIp: req.ip || 'unknown',
+            });
+            enqueueMetric({
+              id: uuidv4(),
+              routeId,
+              requestId,
+              experimentId: experimentCorrelationId,
+              latencyMs: Math.round(Number(process.hrtime.bigint() - startHrTime) / 1000000),
+              statusCode: 403,
             });
             broadcast(route.projectId, 'security:event', {
               id: eventId,
@@ -434,6 +487,7 @@ export function setupGateway(app: Express) {
           enqueueSecurityEvent({
             id: eventId,
             routeId,
+            requestId,
             type: threat,
             severity: 'HIGH',
             action: wafShouldBlock ? 'blocked' : 'monitored',
@@ -447,6 +501,14 @@ export function setupGateway(app: Express) {
           });
         }
         if (wafShouldBlock) {
+          enqueueMetric({
+            id: uuidv4(),
+            routeId,
+            requestId,
+            experimentId: experimentCorrelationId,
+            latencyMs: Math.round(Number(process.hrtime.bigint() - startHrTime) / 1000000),
+            statusCode: 403,
+          });
           return res.status(403).json({ error: 'Forbidden: Suspicious activity detected' });
         }
       }
@@ -461,6 +523,7 @@ export function setupGateway(app: Express) {
           enqueueSecurityEvent({
             id: eventId,
             routeId,
+            requestId,
             type: 'RATE_LIMIT_EXCEEDED',
             severity: 'LOW',
             action: 'blocked',
@@ -469,7 +532,8 @@ export function setupGateway(app: Express) {
           enqueueMetric({
             id: uuidv4(),
             routeId,
-            experimentId: (req.headers['x-experiment-id'] as string) || null,
+            requestId,
+            experimentId: experimentCorrelationId,
             latencyMs: Math.round(Number(process.hrtime.bigint() - startHrTime) / 1000000),
             statusCode: 429,
           });
@@ -483,28 +547,53 @@ export function setupGateway(app: Express) {
         }
       }
 
-      // 5.5 Fault Injection (authenticated traffic only)
-      let runningExps: any[] = [];
-      const cachedExp = expCache.get(routeId);
-      if (cachedExp && Date.now() - cachedExp.cachedAt < 2000) {
-        runningExps = cachedExp.exps;
-      } else {
-        const activeExps = await db.select().from(experiments).where(eq(experiments.routeId, routeId));
-        runningExps = activeExps.filter((e) => e.status === 'RUNNING' || e.status === 'QUEUED');
-        expCache.set(routeId, { exps: runningExps, cachedAt: Date.now() });
-      }
+      // 5.5 Fault Injection (authenticated traffic only; strictly active during RUNNING phase so BASELINE & RECOVERY remain clean)
+      const runningExps = routeExpEntry.exps;
 
       let injectedLatency = 0;
       let injectedError = false;
+      let injectedTimeout = false;
+      let injectedTimeoutDelayMs = 800;
 
       for (const exp of runningExps) {
-        if (exp.type === 'latency') injectedLatency = Math.max(injectedLatency, (exp.config as any)?.latencyMs || 800);
-        if (exp.type === 'error_5xx') injectedError = true;
-        if (exp.type === 'timeout') injectedLatency = Math.max(injectedLatency, 6000);
+        if (exp.type === 'latency') {
+          injectedLatency = Math.max(injectedLatency, (exp.config as any)?.latencyMs ?? 800);
+        }
+        if (exp.type === 'error_5xx') {
+          injectedError = true;
+        }
+        if (exp.type === 'timeout') {
+          injectedTimeout = true;
+          injectedTimeoutDelayMs = Math.max(
+            100,
+            Math.min(Number((exp.config as any)?.latencyMs || 800), 3000)
+          );
+        }
       }
 
       if (injectedLatency > 0) {
         await new Promise((r) => setTimeout(r, injectedLatency));
+      }
+
+      if (injectedTimeout) {
+        await new Promise((r) => setTimeout(r, injectedTimeoutDelayMs));
+        const durationMs = Number(process.hrtime.bigint() - startHrTime) / 1000000;
+        const logId = uuidv4();
+        enqueueMetric({
+          id: logId,
+          routeId,
+          requestId,
+          experimentId: experimentCorrelationId,
+          latencyMs: Math.round(durationMs),
+          statusCode: 504,
+        });
+        broadcast(route.projectId, 'metric:new', {
+          id: logId,
+          routeId,
+          latencyMs: Math.round(durationMs),
+          statusCode: 504,
+        });
+        return res.status(504).json({ error: 'Gateway Timeout (Fault Injection)' });
       }
 
       if (injectedError) {
@@ -513,7 +602,8 @@ export function setupGateway(app: Express) {
         enqueueMetric({
           id: logId,
           routeId,
-          experimentId: (req.headers['x-experiment-id'] as string) || (req.headers['x-fortix-run-id'] as string) || null,
+          requestId,
+          experimentId: experimentCorrelationId,
           latencyMs: Math.round(durationMs),
           statusCode: 503,
         });
@@ -545,6 +635,7 @@ export function setupGateway(app: Express) {
         route,
         routeId,
         requestId,
+        experimentId: experimentCorrelationId,
         startHrTime,
         upstreamTimeoutMs,
         resolvedTargetUrl,

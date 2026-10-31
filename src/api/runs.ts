@@ -1,10 +1,11 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { workflowRuns, apiRoutes, projects, organizations } from '../db/schema.js';
-import { eq, and, desc } from 'drizzle-orm';
+import { workflowRuns, apiRoutes, projects, organizations, experiments, apiKeys } from '../db/schema.js';
+import { eq, and, desc, like } from 'drizzle-orm';
 import { requireProjectOwnership } from './projects.js';
 import { createAutonomousWorkflowRun, WorkflowProfile } from '../autonomous/engine.js';
 import { transitionWorkflowStatus, InvalidStateTransitionError } from '../autonomous/stateMachine.js';
+import { invalidateExpCache, invalidateApiKeyCache } from '../gateway/index.js';
 import { z } from 'zod';
 import { artifactStorage } from '../storage/index.js';
 
@@ -128,13 +129,58 @@ router.post('/:runId/cancel', requireProjectOwnership, async (req, res) => {
     }
 
     try {
+      const inconclusiveVerdict = run.deterministicVerdict || {
+        verdict: 'INCONCLUSIVE',
+        passed: false,
+        score: 0,
+        checks: [
+          {
+            name: 'Workflow Completed Without Cancellation',
+            category: 'TELEMETRY',
+            status: 'INCONCLUSIVE',
+            passed: false,
+            observed: 'CANCELLED',
+            threshold: 'COMPLETED',
+            evidenceRef: `workflow_runs:id=${runId},status=CANCELLED`,
+            reason: 'Autonomous run was cancelled prior to verification completion.',
+          },
+        ],
+        latencyPercentiles: null,
+        errorRate: null,
+        recoveryDurationMs: null,
+        totalDurationMs: run.startedAt ? Math.max(0, Date.now() - new Date(run.startedAt).getTime()) : 0,
+      };
+
       const result = await transitionWorkflowStatus(runId, 'CANCELLED', {
-        timelineMessage: 'Workflow run cancelled by operator',
+        timelineMessage: 'Workflow run cancelled by operator; verdict marked INCONCLUSIVE and active faults cleared.',
         timelineLevel: 'WARN',
         extraUpdates: {
           cleanupStatus: 'CLEANED',
+          deterministicVerdict: inconclusiveVerdict,
         },
       });
+
+      if (run.routeId) {
+        await db
+          .update(experiments)
+          .set({ status: 'CANCELLED', completedAt: new Date() })
+          .where(and(eq(experiments.routeId, run.routeId), eq(experiments.status, 'RUNNING')));
+        invalidateExpCache(run.routeId);
+      }
+
+      const runKeys = await db
+        .select({ id: apiKeys.id })
+        .from(apiKeys)
+        .where(
+          and(
+            eq(apiKeys.projectId, projectId),
+            like(apiKeys.name, `Autonomous Run Worker (${runId.slice(0, 10)})%`)
+          )
+        );
+      for (const k of runKeys) {
+        await db.delete(apiKeys).where(eq(apiKeys.id, k.id));
+        invalidateApiKeyCache(k.id, projectId);
+      }
 
       res.json({ message: 'Run successfully cancelled and resources cleaned up', run: result.run });
     } catch (transErr: any) {

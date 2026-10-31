@@ -152,6 +152,19 @@ let streamSeq = 0;
 
 (sharedMock as any).xack = async () => 1;
 
+const originalMockDel = sharedMock.del.bind(sharedMock);
+(sharedMock as any).del = async (...keys: string[]) => {
+  const flatKeys = keys.flat().map(String);
+  let removedStreams = 0;
+  for (const key of flatKeys) {
+    if (inMemoryStreams.delete(key)) {
+      removedStreams++;
+    }
+  }
+  const removedNative = flatKeys.length > 0 ? await originalMockDel(...flatKeys) : 0;
+  return Number(removedNative || 0) + removedStreams;
+};
+
 let lastRedisConnectionError: string | null = null;
 let lastRedisWarnAt = 0;
 
@@ -205,6 +218,39 @@ function createRedisConnection(): Redis {
   return sharedMock as any;
 }
 
-// Shared Redis connection for BullMQ, Telemetry, and Rate Limiter
+// Shared Redis connection for Telemetry, JWT state, and Rate Limiter
 export const redisConnection: Redis = createRedisConnection();
 export const sharedRedisMock = sharedMock;
+
+/**
+ * Creates an isolated Redis client sharing the same backing store so BullMQ queues
+ * or Pub/Sub subscribers never lock the shared redisConnection into subscriber mode.
+ */
+export function createDedicatedRedisClient(): Redis {
+  if (isRealRedisActive) {
+    const dup = redisConnection.duplicate();
+    dup.on('error', () => {});
+    return dup;
+  }
+  const mockClient = typeof (sharedMock as any).duplicate === 'function'
+    ? (sharedMock as any).duplicate()
+    : new RedisMock();
+  (mockClient as any).status = 'ready';
+  return mockClient as any;
+}
+
+let isRedisClosed = false;
+
+export async function closeRedisConnection(): Promise<void> {
+  if (isRedisClosed) return;
+  isRedisClosed = true;
+  try {
+    await redisConnection.quit();
+  } catch {
+    try {
+      if (typeof (redisConnection as any).disconnect === 'function') {
+        (redisConnection as any).disconnect();
+      }
+    } catch {}
+  }
+}
