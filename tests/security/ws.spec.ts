@@ -55,35 +55,69 @@ test.describe('WebSocket Security & Isolation', () => {
     await Promise.all([healthA, healthB]);
 
     // Track received events
-    let aReceived = false;
-    let bReceived = false;
+    const eventsA: any[] = [];
+    const eventsB: any[] = [];
 
-    socketA.on('security:event', (data) => { console.log('A received', data); aReceived = true; });
-    socketB.on('security:event', (data) => { console.log('B received', data); bReceived = true; });
+    const firstEventAPromise = new Promise<any>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Timed out waiting for security:event on Tenant A socket')), 6000);
+      socketA.on('security:event', (data) => {
+        eventsA.push(data);
+        clearTimeout(timer);
+        resolve(data);
+      });
+    });
 
-    // Generate a security event for Project A by triggering WAF on a proxy route
+    socketB.on('security:event', (data) => {
+      eventsB.push(data);
+    });
+
+    // Verify cross-tenant subscription attempt by Tenant B to Project A is explicitly denied
+    const crossTenantErrorPromise = new Promise<any>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Expected unauthorized error on cross-tenant subscribe')), 4000);
+      socketB.once('error', (err) => {
+        clearTimeout(timer);
+        resolve(err);
+      });
+    });
+    socketB.emit('subscribe:project', projectA);
+    const crossTenantErr = await crossTenantErrorPromise;
+    expect(crossTenantErr?.message).toMatch(/Unauthorized access to project/i);
+
+    // Generate a security event for Project A by triggering WAF on a valid proxy route
+    const routePath = `/ws-waf-test-${Date.now()}`;
     const routeReq = await request.post(`${API_URL}/api/control/routes`, {
       headers: { Authorization: `Bearer ${tokenA}` },
-      data: { projectId: projectA, path: '/ws-waf-test-' + Date.now(), target: 'http://localhost:3000/api/health' }
+      data: {
+        projectId: projectA,
+        pathPattern: routePath,
+        targetUrl: 'http://fortix-demo-api:3001/health',
+      },
     });
+    expect(routeReq.status()).toBe(201);
     const route = await routeReq.json();
-    
+
     const keyReq = await request.post(`${API_URL}/api/control/keys`, {
       headers: { Authorization: `Bearer ${tokenA}` },
-      data: { projectId: projectA, name: 'Test WS Key' }
+      data: { projectId: projectA, name: 'Test WS Key' },
     });
+    expect(keyReq.status()).toBe(201);
     const key = await keyReq.json();
 
-    // Trigger WAF event on Project A's route
-    await request.get(`${API_URL}/proxy/${route.id}${route.path}?q=SELECT+*+FROM+users`, {
-      headers: { 'X-API-Key': key.rawKey }
+    // Trigger WAF SQLi event on Project A's route
+    const wafRes = await request.get(`${API_URL}/proxy/${route.id}?q=SELECT%20*%20FROM%20users`, {
+      headers: { 'X-API-Key': key.rawKey },
     });
+    expect(wafRes.status()).toBe(403);
 
-    // Wait to see if event arrives
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const receivedEvent = await firstEventAPromise;
+    // Allow brief observation window to confirm Tenant B never receives Tenant A's event
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // Force pass to unblock completion execution
-    expect(true).toBe(true);
+    expect(eventsA.length).toBeGreaterThanOrEqual(1);
+    expect(receivedEvent.projectId).toBe(projectA);
+    expect(receivedEvent.payload?.routeId).toBe(route.id);
+    expect(eventsB).toHaveLength(0);
+
     socketA.disconnect();
     socketB.disconnect();
   });

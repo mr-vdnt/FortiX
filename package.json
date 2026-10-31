@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild src/worker.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/worker.cjs",
     "start": "cross-env NODE_ENV=production node dist/server.cjs",
+    "start:worker": "cross-env NODE_ENV=production node dist/worker.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "typecheck": "tsc --noEmit",
@@ -64,7 +65,6 @@
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
     "uuid": "^14.0.2",
-    "vite": "^6.2.3",
     "zod": "^4.5.4"
   },
   "devDependencies": {

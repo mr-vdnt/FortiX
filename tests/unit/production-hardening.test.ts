@@ -7,11 +7,26 @@ import { db, getStorageMode, isPersistentStorage } from '../../src/db/index.js';
 import { normalizeDatabaseUrl, resolvePostgresSslOption } from '../../src/db/url.js';
 import { normalizeRedisUrl } from '../../src/redis.js';
 import { apiRoutes, apiKeys, users, organizations, projects } from '../../src/db/schema.js';
-import { validateProductionJwtSecret } from '../../server.js';
+import {
+  validateProductionJwtSecret,
+  listenWithBoundedRetry,
+  executeGracefulShutdown,
+} from '../../server.js';
 import { getEffectiveRedisFailurePolicy, parseAndValidateRedisFailurePolicy } from '../../src/rate-limit/redis.js';
+import { getDependenciesHealth } from '../../src/api/system.js';
+import { setupApiRoutes } from '../../src/api/index.js';
+import { buildReadinessPayload, evaluateReadinessContract } from '../../src/lib/readiness.js';
+import {
+  getUncaughtErrorCount,
+  incrementUncaughtErrorCount,
+  resetUncaughtErrorCountForTests,
+} from '../../src/lib/error-tracker.js';
+import { extractRequestToken } from '../../src/lib/jwt-security.js';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import path from 'path';
 
 describe('Phase 2 — Production Hardening & Gateway Correctness', () => {
   describe('1. Production Persistent Storage Safeguards', () => {
@@ -267,6 +282,147 @@ describe('Phase 2 — Production Hardening & Gateway Correctness', () => {
 
       expect(res.status).toBe(502);
       expect(res.body.error).toMatch(/Bad Gateway: Upstream failure/i);
+    });
+  });
+
+  describe('5. FTX-REL-P0-P1-RUNTIME-001 — Bounded Port Retry, Graceful Shutdown, Readiness Parity & Worker Bundle', () => {
+    it('fails fast with an actionable EADDRINUSE error after bounded retries when a port is already occupied', async () => {
+      const blocker = http.createServer((_req, res) => res.end('occupied'));
+      await new Promise<void>((resolve) => blocker.listen(0, '127.0.0.1', () => resolve()));
+      const occupiedPort = (blocker.address() as any).port as number;
+
+      const candidate = http.createServer((_req, res) => res.end('candidate'));
+      try {
+        await expect(
+          listenWithBoundedRetry(candidate, occupiedPort, '127.0.0.1', {
+            maxRetries: 2,
+            retryDelayMs: 25,
+          })
+        ).rejects.toThrow(new RegExp(`port ${occupiedPort} is already in use \\(EADDRINUSE\\)`, 'i'));
+      } finally {
+        await new Promise<void>((resolve) => blocker.close(() => resolve()));
+      }
+    });
+
+    it('closes all owned runtime resources deterministically during executeGracefulShutdown', async () => {
+      const callOrder: string[] = [];
+      const ephemeralServer = http.createServer((_req, res) => res.end('ok'));
+      await listenWithBoundedRetry(ephemeralServer, 0, '127.0.0.1', { maxRetries: 0 });
+      expect(ephemeralServer.listening).toBe(true);
+
+      const { errors } = await executeGracefulShutdown({
+        server: ephemeralServer,
+        closeWebSockets: async () => {
+          callOrder.push('websockets');
+        },
+        viteClose: async () => {
+          callOrder.push('vite');
+        },
+        closeDemoApi: async () => {
+          callOrder.push('demoApi');
+        },
+        shutdownWorkers: async () => {
+          callOrder.push('workers');
+        },
+        closeExperimentQueue: async () => {
+          callOrder.push('experimentQueue');
+        },
+        closeKeyRevocationClients: async () => {
+          callOrder.push('keyRevocationPubSub');
+        },
+        closeRedisConnection: async () => {
+          callOrder.push('redis');
+        },
+        closeDatabaseConnection: async () => {
+          callOrder.push('postgres');
+        },
+      });
+
+      expect(errors).toEqual([]);
+      expect(ephemeralServer.listening).toBe(false);
+      expect(callOrder).toEqual([
+        'websockets',
+        'vite',
+        'demoApi',
+        'workers',
+        'experimentQueue',
+        'keyRevocationPubSub',
+        'redis',
+        'postgres',
+      ]);
+
+      // Idempotent second call when HTTP server is already stopped must not throw ERR_SERVER_NOT_RUNNING
+      const secondRun = await executeGracefulShutdown({ server: ephemeralServer });
+      expect(secondRun.errors).toEqual([]);
+    });
+
+    it('standardizes /health/ready and /api/health/ready payloads and reports worker.queue as "experiments"', async () => {
+      resetUncaughtErrorCountForTests();
+      incrementUncaughtErrorCount();
+
+      const health = await getDependenciesHealth();
+      expect(health.worker.queue).toBe('experiments');
+
+      const readinessApp = express();
+      readinessApp.get('/health/ready', async (_req, res) => {
+        const depHealth = await getDependenciesHealth();
+        const evaluation = evaluateReadinessContract(depHealth);
+        res
+          .status(evaluation.httpStatus)
+          .json(buildReadinessPayload(depHealth, evaluation, getUncaughtErrorCount()));
+      });
+      setupApiRoutes(readinessApp);
+
+      const rootReady = await request(readinessApp).get('/health/ready');
+      const apiReady = await request(readinessApp).get('/api/health/ready');
+
+      expect(rootReady.status).toBe(apiReady.status);
+      expect(Object.keys(rootReady.body).sort()).toEqual(Object.keys(apiReady.body).sort());
+      expect(rootReady.body.status).toBe(apiReady.body.status);
+      expect(rootReady.body.deploymentMode).toBe(apiReady.body.deploymentMode);
+      expect(rootReady.body.persistenceVerified).toBe(apiReady.body.persistenceVerified);
+      expect(rootReady.body.postgresStorageMode).toBe(apiReady.body.postgresStorageMode);
+      expect(rootReady.body.postgresMigrationStatus).toBe(apiReady.body.postgresMigrationStatus);
+      expect(rootReady.body.redisStorageMode).toBe(apiReady.body.redisStorageMode);
+      expect(rootReady.body.uncaughtErrors).toBe(1);
+      expect(apiReady.body.uncaughtErrors).toBe(1);
+
+      resetUncaughtErrorCountForTests();
+    });
+
+    it('prioritizes explicit Authorization Bearer header over ambient session cookies without cookie fallback', () => {
+      const explicitBearer = extractRequestToken({
+        headers: {
+          authorization: 'Bearer explicit-header-jwt',
+          cookie: 'fortix_session=ambient-cookie-jwt',
+        },
+        cookies: { fortix_session: 'ambient-cookie-jwt' },
+      });
+      expect(explicitBearer).toBe('explicit-header-jwt');
+
+      const malformedBearerWithCookie = extractRequestToken({
+        headers: {
+          authorization: 'Basic dXNlcjpwYXNz',
+          cookie: 'fortix_session=ambient-cookie-jwt',
+        },
+        cookies: { fortix_session: 'ambient-cookie-jwt' },
+      });
+      expect(malformedBearerWithCookie).toBeUndefined();
+    });
+
+    it('enforces Vite ws:false, Playwright **/*.spec.ts isolation, and compiled dist/worker.cjs Docker command', () => {
+      const repoRoot = process.cwd();
+      const serverSrc = fs.readFileSync(path.join(repoRoot, 'server.ts'), 'utf8');
+      const playwrightCfg = fs.readFileSync(path.join(repoRoot, 'playwright.config.ts'), 'utf8');
+      const composeCfg = fs.readFileSync(path.join(repoRoot, 'docker-compose.yml'), 'utf8');
+      const pkgJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+
+      expect(serverSrc).toMatch(/hmr:\s*false/);
+      expect(serverSrc).toMatch(/ws:\s*false/);
+      expect(playwrightCfg).toMatch(/testMatch:\s*['"]\*\*\/\*\.spec\.ts['"]/);
+      expect(composeCfg).not.toMatch(/--loader\s+tsx/);
+      expect(composeCfg).toMatch(/\["node",\s*"dist\/worker\.cjs"\]/);
+      expect(pkgJson.scripts.build).toContain('dist/worker.cjs');
     });
   });
 });

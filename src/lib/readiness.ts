@@ -156,3 +156,47 @@ export function evaluateReadinessContract(
     warnings,
   };
 }
+
+export interface StandardReadinessResponse {
+  status: 'ok' | 'ephemeral_ready' | 'degraded' | 'unhealthy';
+  deploymentMode: 'persistent' | 'hybrid' | 'ephemeral-sandbox' | 'unhealthy';
+  persistenceVerified: boolean;
+  postgres: string;
+  postgresStorageMode: 'persistent' | 'in-memory';
+  postgresMigrationStatus: 'verified' | 'pending' | 'failed';
+  postgresLatencyMs: number;
+  postgresError?: string;
+  redis: string;
+  redisStorageMode: 'persistent' | 'in-memory';
+  redisLatencyMs: number;
+  redisError?: string;
+  warnings: string[];
+  uncaughtErrors: number;
+}
+
+export function buildReadinessPayload(
+  health: DependencyHealthSnapshot,
+  evaluation: ReadinessEvaluation = evaluateReadinessContract(health),
+  uncaughtErrors = 0
+): StandardReadinessResponse {
+  const payload: StandardReadinessResponse = {
+    status: evaluation.status,
+    deploymentMode: evaluation.deploymentMode,
+    persistenceVerified: evaluation.persistenceVerified,
+    postgres: health.postgres.status,
+    postgresStorageMode: health.postgres.storageMode,
+    postgresMigrationStatus: health.postgres.migrationStatus || 'verified',
+    postgresLatencyMs: health.postgres.latencyMs ?? 0,
+    redis: health.redis.status,
+    redisStorageMode: health.redis.storageMode,
+    redisLatencyMs: health.redis.latencyMs ?? 0,
+    warnings: evaluation.warnings,
+    uncaughtErrors,
+  };
+
+  const pgErr = health.postgres.error || health.postgres.migrationError;
+  if (pgErr) payload.postgresError = pgErr;
+  if (health.redis.error) payload.redisError = health.redis.error;
+
+  return payload;
+}

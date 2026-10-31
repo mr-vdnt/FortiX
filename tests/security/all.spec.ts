@@ -46,18 +46,17 @@ test.describe('FortiX Security Matrix', () => {
   });
 
   test('SSRF Protection: Rejects private metadata IPs', async ({ request }) => {
-    // Try to create a route pointing to AWS metadata
+    // Try to create a route pointing to cloud metadata IP with valid route schema fields
     const res = await request.post('/api/control/routes', {
       headers: { Authorization: `Bearer ${TOKEN}` },
       data: {
         projectId: TEST_PROJECT_ID,
-        name: 'SSRF Route',
+        pathPattern: '/ssrf-metadata-probe',
         targetUrl: 'http://169.254.169.254/latest/meta-data',
-        authRequired: false
-      }
+      },
     });
-    // Our validator inside the route creation should catch it, or if it bypassed, proxy catches it.
-    // Let's assume validation catches it.
-    expect(res.status()).toBeGreaterThanOrEqual(400); 
+    expect(res.status()).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/SSRF/i);
   });
 });

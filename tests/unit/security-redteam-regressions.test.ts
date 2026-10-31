@@ -544,8 +544,18 @@ describe('FortiX Red-Team Security & Reliability Regressions', () => {
     expect(resolveGatewayPort(['node', 'dist/server.cjs'], { K_SERVICE: 'fortix-cloudrun', PORT: '8080' } as any)).toBe(8080);
     expect(resolveGatewayPort(['node', 'dist/server.cjs'], { NODE_ENV: 'production', PORT: '8080' } as any)).toBe(8080);
 
-    // AI Studio dev preview (no K_SERVICE, non-production, internal PORT=8080) must bind 3000
+    // AI Studio dev preview (with or without K_SERVICE, non-production, internal Nginx PORT=8080 + DEFAULT_APP_PORT=3000) must bind 3000
     expect(resolveGatewayPort(['tsx', 'server.ts'], { NODE_ENV: 'development', PORT: '8080' } as any)).toBe(3000);
+    expect(
+      resolveGatewayPort(['tsx', 'server.ts'], {
+        NODE_ENV: 'development',
+        K_SERVICE: 'ais-dev-preview',
+        PORT: '8080',
+        NGINX_PORT: '8080',
+        CONTROL_PLANE_PORT: '8000',
+        DEFAULT_APP_PORT: '3000',
+      } as any)
+    ).toBe(3000);
 
     // Production without JWT_SECRET generates a strong 64-hex-char secret unless STRICT_PRODUCTION_SECRETS=true
     const origNodeEnv = process.env.NODE_ENV;

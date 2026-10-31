@@ -27,12 +27,11 @@ test.describe('FortiX Full Lifecycle Verification', () => {
       headers: { Authorization: `Bearer ${TOKEN}` },
       data: {
         projectId: TEST_PROJECT_ID,
-        targetUrl: 'http://fortix-demo-api',
+        targetUrl: 'http://fortix-demo-api:3001',
         pathPattern: '/api/demo/1'
       }
     });
-    console.log(await routeRes.text());
-expect(routeRes.ok()).toBeTruthy();
+    expect(routeRes.status()).toBe(201);
     const route = await routeRes.json();
     const routeId = route.id;
 
@@ -104,10 +103,11 @@ expect(routeRes.ok()).toBeTruthy();
       headers: { Authorization: `Bearer ${TOKEN}` },
       data: {
         projectId: TEST_PROJECT_ID,
-        targetUrl: 'http://fortix-demo-api',
+        targetUrl: 'http://fortix-demo-api:3001',
         pathPattern: '/api/demo/2'
       }
     });
+    expect(route2Res.status()).toBe(201);
     const route2Id = (await route2Res.json()).id;
     
     const startIsolated = Date.now();

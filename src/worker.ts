@@ -1,13 +1,20 @@
 import { Worker, Queue } from 'bullmq';
-import { db } from './db/index.js';
+import { db, closeDatabaseConnection } from './db/index.js';
 import { metricLogs, experiments } from './db/schema.js';
 import { runExperimentLogic } from './experiments/worker.js';
+import { closeExperimentQueue } from './experiments/queue.js';
 import { eq, and, lt, sql } from 'drizzle-orm';
 import { registerQueue, recordDlqFailure } from './lib/dlq.js';
+import { closeKeyRevocationClients } from './lib/key-invalidation.js';
 import { logger } from './lib/logger.js';
-import { processTelemetryBatch } from './telemetry-worker.js';
+import { processTelemetryBatch, stopTelemetryWorker } from './telemetry-worker.js';
 import { executeWebhookDelivery } from './lib/webhooks.js';
-import { getBullMqConnectionOptions, isManagedServerlessRedis, isRealRedisActive } from './redis.js';
+import {
+  closeRedisConnection,
+  getBullMqConnectionOptions,
+  isManagedServerlessRedis,
+  isRealRedisActive,
+} from './redis.js';
 
 export function isBenignConnectionError(err: any): boolean {
   if (!err) return false;
@@ -28,6 +35,12 @@ export function isBenignConnectionError(err: any): boolean {
   );
 }
 
+let cleanupQueueRef: Queue | null = null;
+let experimentWorkerRef: Worker | null = null;
+let webhookWorkerRef: Worker | null = null;
+let cleanupWorkerRef: Worker | null = null;
+let workersShuttingDown = false;
+
 if (isRealRedisActive) {
   const redisConnection = getBullMqConnectionOptions();
   const workerOptions = isManagedServerlessRedis
@@ -35,6 +48,7 @@ if (isRealRedisActive) {
     : { connection: redisConnection as any };
 
   const cleanupQueue = new Queue('cleanup', { connection: redisConnection as any });
+  cleanupQueueRef = cleanupQueue;
   registerQueue('cleanup', cleanupQueue);
 
   cleanupQueue.on('error', (err: any) => {
@@ -47,6 +61,7 @@ if (isRealRedisActive) {
       await runExperimentLogic(job.data.experimentId);
     }
   }, workerOptions);
+  experimentWorkerRef = experimentWorker;
 
   experimentWorker.on('error', (err: any) => {
     if (isBenignConnectionError(err)) return;
@@ -87,6 +102,7 @@ if (isRealRedisActive) {
       await executeWebhookDelivery(job.data, attempt);
     }
   }, workerOptions);
+  webhookWorkerRef = webhookWorker;
 
   webhookWorker.on('error', (err: any) => {
     if (isBenignConnectionError(err)) return;
@@ -138,6 +154,7 @@ if (isRealRedisActive) {
       logger.info('Reaped orphaned experiments');
     }
   }, workerOptions);
+  cleanupWorkerRef = cleanupWorker;
 
   cleanupWorker.on('error', (err: any) => {
     if (isBenignConnectionError(err)) return;
@@ -173,3 +190,58 @@ processTelemetryBatch().catch((err) => {
   if (isBenignConnectionError(err)) return;
   logger.error({ err }, 'Telemetry ingestion loop error');
 });
+
+export async function shutdownWorkers(): Promise<void> {
+  if (workersShuttingDown) return;
+  workersShuttingDown = true;
+
+  await stopTelemetryWorker();
+
+  const closers: Promise<unknown>[] = [];
+  if (experimentWorkerRef) closers.push(experimentWorkerRef.close());
+  if (webhookWorkerRef) closers.push(webhookWorkerRef.close());
+  if (cleanupWorkerRef) closers.push(cleanupWorkerRef.close());
+  if (cleanupQueueRef) closers.push(cleanupQueueRef.close());
+  closers.push(closeExperimentQueue());
+  closers.push(closeKeyRevocationClients());
+
+  await Promise.allSettled(closers);
+  experimentWorkerRef = null;
+  webhookWorkerRef = null;
+  cleanupWorkerRef = null;
+  cleanupQueueRef = null;
+}
+
+const isStandaloneWorkerProcess =
+  process.env.FORTIX_EMBEDDED_WORKER !== 'true' &&
+  process.env.NODE_ENV !== 'test' &&
+  !process.env.VITEST;
+
+if (isStandaloneWorkerProcess) {
+  let standaloneExiting = false;
+  const handleWorkerSignal = async (signal: string) => {
+    if (standaloneExiting) return;
+    standaloneExiting = true;
+    logger.info({ signal }, '[Worker] Received shutdown signal, closing workers and connections...');
+    const forceTimer = setTimeout(() => {
+      logger.error('[Worker] Shutdown timed out after 10s, exiting forcefully');
+      process.exit(1);
+    }, 10000);
+    forceTimer.unref?.();
+
+    try {
+      await shutdownWorkers();
+      await closeRedisConnection();
+      await closeDatabaseConnection();
+      clearTimeout(forceTimer);
+      logger.info('[Worker] Graceful shutdown complete.');
+      process.exit(0);
+    } catch (err) {
+      logger.error({ err }, '[Worker] Error during graceful shutdown');
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => void handleWorkerSignal('SIGTERM'));
+  process.on('SIGINT', () => void handleWorkerSignal('SIGINT'));
+}

@@ -6,7 +6,7 @@ import { eq, and } from 'drizzle-orm';
 import { verifyAndResolveJwtUser, hashJwtToken, extractRequestToken } from './lib/jwt-security.js';
 import { isOriginAllowed } from './lib/cors-csrf.js';
 
-let io: Server;
+let io: Server | null = null;
 
 // Monotonic sequence counters per project for gap detection
 const projectSequences = new Map<string, number>();
@@ -113,7 +113,7 @@ export function setupWebSockets(server: HttpServer) {
   });
 
   io.on('connection', (socket) => {
-    telemetryStats.connectedSockets = io.engine.clientsCount;
+    telemetryStats.connectedSockets = io?.engine?.clientsCount || 0;
     const userId = socket.data?.user?.id as string | undefined;
     const tokenHash = socket.data?.tokenHash as string | undefined;
 
@@ -164,7 +164,7 @@ export function setupWebSockets(server: HttpServer) {
     });
 
     socket.on('disconnect', () => {
-      telemetryStats.connectedSockets = io.engine?.clientsCount || 0;
+      telemetryStats.connectedSockets = io?.engine?.clientsCount || 0;
       if (userId) {
         const uSet = socketsByUser.get(userId);
         if (uSet) {
@@ -208,6 +208,7 @@ export function setupWebSockets(server: HttpServer) {
       });
       eventBuffer.clear();
     }, 1000);
+    batchInterval.unref?.();
   }
 
   // Periodic heartbeat every 10s for connection liveness
@@ -219,7 +220,33 @@ export function setupWebSockets(server: HttpServer) {
         connectedClients: io.engine?.clientsCount || 0
       });
     }, 10000);
+    heartbeatInterval.unref?.();
   }
+}
+
+export async function closeWebSockets(): Promise<void> {
+  if (batchInterval) {
+    clearInterval(batchInterval);
+    batchInterval = null;
+  }
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+  eventBuffer.clear();
+  socketsByUser.clear();
+  socketsByTokenHash.clear();
+
+  const currentIo = io;
+  io = null;
+  if (!currentIo) return;
+
+  try {
+    currentIo.disconnectSockets(true);
+    await new Promise<void>((resolve) => {
+      currentIo.close(() => resolve());
+    });
+  } catch {}
 }
 
 export function broadcast(projectId: string, event: string, data: any) {

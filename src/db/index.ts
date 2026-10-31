@@ -18,6 +18,7 @@ const isProduction = !isTest && process.env.NODE_ENV === 'production';
 const strictPersistentDb = !isTest && process.env.STRICT_PERSISTENT_DB === 'true';
 
 let storageMode: 'persistent' | 'in-memory' = 'in-memory';
+let activeDbCloser: (() => Promise<void>) | null = null;
 
 function createMemDb() {
   console.log('[Database] Initializing high-performance resilient in-memory PostgreSQL engine (pg-mem)...');
@@ -76,6 +77,9 @@ function createMemDb() {
   }
 
   const pool = new PatchedPool();
+  activeDbCloser = async () => {
+    await pool.end();
+  };
   const memDb = drizzleNodePg(pool, { schema });
 
   // STRICT SAFEGUARD: Only seed preview accounts in non-production environments
@@ -183,6 +187,9 @@ function initializeDatabase() {
         max_lifetime: 60 * 30,
         max: 10,
       });
+      activeDbCloser = async () => {
+        await client.end({ timeout: 5 });
+      };
       storageMode = 'persistent';
       return drizzlePgJs(client, { schema });
     } catch (err: any) {
@@ -218,6 +225,9 @@ function initializeDatabase() {
         max_lifetime: 60 * 30,
         max: 10,
       });
+      activeDbCloser = async () => {
+        await client.end({ timeout: 5 });
+      };
       storageMode = 'persistent';
       return drizzlePgJs(client, { schema });
     } catch (err: any) {
@@ -247,4 +257,15 @@ export function getStorageMode(): 'persistent' | 'in-memory' {
 
 export function isPersistentStorage(): boolean {
   return storageMode === 'persistent';
+}
+
+export async function closeDatabaseConnection(): Promise<void> {
+  const closer = activeDbCloser;
+  activeDbCloser = null;
+  if (!closer) return;
+  try {
+    await closer();
+  } catch (err) {
+    console.warn('[Database] Warning while closing database connection:', err);
+  }
 }

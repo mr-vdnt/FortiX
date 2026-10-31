@@ -71,7 +71,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    command: ["node", "--loader", "tsx", "src/worker.ts"]
+    command: ["node", "dist/worker.cjs"]
     environment:
       - NODE_ENV=production
       - STRICT_PERSISTENT_DB=true

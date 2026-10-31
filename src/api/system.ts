@@ -139,7 +139,7 @@ export async function getDependenciesHealth() {
     worker: {
       status: redisStatus === 'healthy' ? 'healthy' : 'degraded',
       mode: isRealRedisActive ? 'bullmq-redis' : 'in-process-bounded',
-      queue: 'fortix-experiments',
+      queue: 'experiments',
     },
   };
 

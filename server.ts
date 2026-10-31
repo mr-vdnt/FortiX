@@ -5,16 +5,19 @@ import fs from 'fs';
 import crypto from 'crypto';
 import cors from 'cors';
 import http from 'http';
-import { resolveGatewayPort } from './src/lib/port.js';
+import { isAiStudioDevPreview, resolveGatewayPort } from './src/lib/port.js';
 import { isOriginAllowed, resolveRequestHost } from './src/lib/cors-csrf.js';
-import { evaluateReadinessContract } from './src/lib/readiness.js';
-import { captureTrackedError, apiGlobalErrorHandler } from './src/lib/error-tracker.js';
-
-let runtimeUncaughtErrors = 0;
+import { buildReadinessPayload, evaluateReadinessContract } from './src/lib/readiness.js';
+import {
+  captureTrackedError,
+  apiGlobalErrorHandler,
+  incrementUncaughtErrorCount,
+  getUncaughtErrorCount,
+} from './src/lib/error-tracker.js';
 
 // Deliberate process-level exception & rejection handling (no silent ECONNREFUSED suppression)
 process.on('uncaughtException', (err) => {
-  runtimeUncaughtErrors++;
+  incrementUncaughtErrorCount();
   captureTrackedError({
     source: 'server',
     code: 'UNCAUGHT_EXCEPTION',
@@ -27,7 +30,7 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (reason: any) => {
-  runtimeUncaughtErrors++;
+  incrementUncaughtErrorCount();
   captureTrackedError({
     source: 'server',
     code: 'UNHANDLED_REJECTION',
@@ -54,7 +57,7 @@ export function validateProductionJwtSecret(secret?: string): { valid: boolean; 
     'password',
     'fortix_secret',
     '12345678901234567890123456789012',
-    'abcdefghijklmnopqrstuvwxyz123456'
+    'abcdefghijklmnopqrstuvwxyz123456',
   ];
   if (disallowedDefaults.includes(secret.toLowerCase())) {
     return { valid: false, reason: 'JWT_SECRET contains a known development placeholder or default password' };
@@ -68,6 +71,143 @@ export function validateProductionJwtSecret(secret?: string): { valid: boolean; 
 
 export function resolveServerPort(argv = process.argv, env = process.env): number {
   return resolveGatewayPort(argv, env);
+}
+
+export interface PortBindOptions {
+  maxRetries?: number;
+  retryDelayMs?: number;
+}
+
+export function listenWithBoundedRetry(
+  server: http.Server,
+  port: number,
+  host = '0.0.0.0',
+  options: PortBindOptions = {}
+): Promise<void> {
+  const envRetries =
+    process.env.PORT_BIND_MAX_RETRIES !== undefined
+      ? Number.parseInt(process.env.PORT_BIND_MAX_RETRIES, 10)
+      : NaN;
+  const envDelay =
+    process.env.PORT_BIND_RETRY_DELAY_MS !== undefined
+      ? Number.parseInt(process.env.PORT_BIND_RETRY_DELAY_MS, 10)
+      : NaN;
+
+  const maxRetries = options.maxRetries ?? (Number.isFinite(envRetries) && envRetries >= 0 ? envRetries : 2);
+  const retryDelayMs = options.retryDelayMs ?? (Number.isFinite(envDelay) && envDelay >= 0 ? envDelay : 400);
+
+  return new Promise<void>((resolve, reject) => {
+    let attempt = 0;
+
+    const tryBind = () => {
+      const onListening = () => {
+        server.removeListener('error', onStartupError);
+        server.on('error', (runtimeErr: any) => {
+          console.error('[Server] Fatal runtime server error:', runtimeErr);
+        });
+        console.log(`FortiX Server listening on http://${host}:${port}`);
+        resolve();
+      };
+
+      const onStartupError = (err: any) => {
+        server.removeListener('listening', onListening);
+        if (err?.code === 'EADDRINUSE' && attempt < maxRetries) {
+          attempt += 1;
+          console.warn(
+            `[Server] Port ${port} already in use (retry ${attempt}/${maxRetries} in ${retryDelayMs}ms)...`
+          );
+          setTimeout(tryBind, retryDelayMs);
+          return;
+        }
+
+        if (err?.code === 'EADDRINUSE') {
+          const bindError = new Error(
+            `[Server] Failed to bind http://${host}:${port} after ${attempt + 1} attempt(s): port ${port} is already in use (EADDRINUSE). Terminate the conflicting listener or configure an available PORT.`
+          ) as Error & { code?: string };
+          bindError.code = 'EADDRINUSE';
+          reject(bindError);
+          return;
+        }
+
+        reject(err);
+      };
+
+      server.once('listening', onListening);
+      server.once('error', onStartupError);
+      try {
+        server.listen(port, host);
+      } catch (syncErr) {
+        server.removeListener('listening', onListening);
+        server.removeListener('error', onStartupError);
+        reject(syncErr);
+      }
+    };
+
+    tryBind();
+  });
+}
+
+export interface GracefulShutdownResources {
+  server?: (Pick<http.Server, 'close'> & { listening?: boolean; closeIdleConnections?: () => void }) | null;
+  closeWebSockets?: (() => Promise<void>) | null;
+  viteClose?: (() => Promise<void>) | null;
+  closeDemoApi?: (() => Promise<void>) | null;
+  shutdownWorkers?: (() => Promise<void>) | null;
+  closeExperimentQueue?: (() => Promise<void>) | null;
+  closeKeyRevocationClients?: (() => Promise<void>) | null;
+  closeRedisConnection?: (() => Promise<void>) | null;
+  closeDatabaseConnection?: (() => Promise<void>) | null;
+}
+
+export async function executeGracefulShutdown(
+  resources: GracefulShutdownResources
+): Promise<{ errors: string[] }> {
+  const errors: string[] = [];
+
+  const runStep = async (name: string, fn?: (() => Promise<void>) | null) => {
+    if (!fn) return;
+    try {
+      await fn();
+    } catch (err: any) {
+      const msg = `${name}: ${err?.message || String(err)}`;
+      errors.push(msg);
+      console.error(`[Shutdown] Error closing ${name}:`, err);
+    }
+  };
+
+  await runStep('websockets', resources.closeWebSockets);
+
+  if (resources.server) {
+    await runStep('httpServer', async () => {
+      if (resources.server?.listening === false) return;
+      await new Promise<void>((resolve, reject) => {
+        try {
+          resources.server?.closeIdleConnections?.();
+          resources.server!.close((err?: Error & { code?: string }) => {
+            if (err && err.code !== 'ERR_SERVER_NOT_RUNNING') {
+              return reject(err);
+            }
+            resolve();
+          });
+        } catch (err: any) {
+          if (err?.code === 'ERR_SERVER_NOT_RUNNING') {
+            return resolve();
+          }
+          reject(err);
+        }
+      });
+    });
+  }
+
+  await runStep('viteDevServer', resources.viteClose);
+  await runStep('demoApiServer', resources.closeDemoApi);
+  await runStep('workers', resources.shutdownWorkers);
+  await runStep('experimentQueue', resources.closeExperimentQueue);
+  await runStep('keyRevocationPubSub', resources.closeKeyRevocationClients);
+  await runStep('redisConnection', resources.closeRedisConnection);
+  await runStep('databaseConnection', resources.closeDatabaseConnection);
+
+  return { errors };
 }
 
 if (process.env.NODE_ENV === 'production') {
@@ -118,49 +258,70 @@ async function startServer() {
   app.use(cookieParser());
 
   const server = http.createServer(app);
-  server.on('error', (err: any) => {
-    if (err?.code === 'EADDRINUSE') {
-      console.warn(`[Server] Port ${PORT} already in use. Retrying in 1s...`);
-      setTimeout(() => {
-        try {
-          server.listen(PORT, '0.0.0.0');
-        } catch {}
-      }, 1000);
-    } else {
-      console.error('[Server] Fatal server error:', err);
-    }
-  });
 
-  // Bind TCP listener immediately so cold-boot readiness probes never time out
-  await new Promise<void>((resolve) => {
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`FortiX Server listening on http://0.0.0.0:${PORT}`);
-      resolve();
-    });
-  });
+  // Bind TCP listener with bounded retry so cold-boot probes succeed while occupied-port conflicts fail fast
+  await listenWithBoundedRetry(server, PORT, '0.0.0.0');
 
   // Dynamic router populated asynchronously; in-flight requests await bootstrapPromise seamlessly
   const runtimeRouter = express.Router();
-  let redisQuit: (() => Promise<unknown>) | null = null;
+  const shutdownResources: GracefulShutdownResources = { server };
+  let backgroundStartupTimer: NodeJS.Timeout | null = null;
 
   const bootstrapPromise = (async () => {
+    const distPath = path.join(process.cwd(), 'dist');
+    const useCompiledSpa =
+      !isAiStudioDevPreview(process.env) &&
+      (process.env.NODE_ENV === 'production' || Boolean(process.env.K_SERVICE)) &&
+      fs.existsSync(path.join(distPath, 'index.html'));
+
+    const vitePromise = !useCompiledSpa
+      ? (async () => {
+          if (process.env.DISABLE_HMR === undefined) {
+            process.env.DISABLE_HMR = 'true';
+          }
+          const { createServer: createViteServer } = await import('vite');
+          return createViteServer({
+            server: {
+              middlewareMode: true,
+              hmr: false,
+              ws: false,
+              watch: null,
+            },
+            appType: 'spa',
+          });
+        })()
+      : Promise.resolve(null);
+
     const [
-      { setupWebSockets },
+      { setupWebSockets, closeWebSockets },
       { getDependenciesHealth },
       { setupApiRoutes },
       { setupGateway },
       { initDatabase },
-      { redisConnection }
+      { closeDatabaseConnection },
+      { closeRedisConnection },
+      { closeExperimentQueue },
+      { closeKeyRevocationClients },
+      vite,
     ] = await Promise.all([
       import('./src/socket.js'),
       import('./src/api/system.js'),
       import('./src/api/index.js'),
       import('./src/gateway/index.js'),
       import('./src/db/init.js'),
-      import('./src/redis.js')
+      import('./src/db/index.js'),
+      import('./src/redis.js'),
+      import('./src/experiments/queue.js'),
+      import('./src/lib/key-invalidation.js'),
+      vitePromise,
     ]);
 
-    redisQuit = () => redisConnection.quit();
+    shutdownResources.closeWebSockets = closeWebSockets;
+    shutdownResources.viteClose = vite ? () => vite.close() : null;
+    shutdownResources.closeExperimentQueue = closeExperimentQueue;
+    shutdownResources.closeKeyRevocationClients = closeKeyRevocationClients;
+    shutdownResources.closeRedisConnection = closeRedisConnection;
+    shutdownResources.closeDatabaseConnection = closeDatabaseConnection;
 
     setupWebSockets(server);
 
@@ -171,15 +332,9 @@ async function startServer() {
       const health = await getDependenciesHealth();
       const evaluation = evaluateReadinessContract(health);
 
-      res.status(evaluation.httpStatus).json({
-        status: evaluation.status,
-        deploymentMode: evaluation.deploymentMode,
-        persistenceVerified: evaluation.persistenceVerified,
-        postgres: health.postgres,
-        redis: health.redis,
-        warnings: evaluation.warnings,
-        uncaughtErrors: runtimeUncaughtErrors,
-      });
+      res
+        .status(evaluation.httpStatus)
+        .json(buildReadinessPayload(health, evaluation, getUncaughtErrorCount()));
     });
 
     runtimeRouter.get('/health/dependencies', async (_req, res) => {
@@ -195,21 +350,7 @@ async function startServer() {
     setupApiRoutes(runtimeRouter as any);
     setupGateway(runtimeRouter as any);
 
-    const distPath = path.join(process.cwd(), 'dist');
-    const useCompiledSpa =
-      (process.env.NODE_ENV === 'production' || Boolean(process.env.K_SERVICE)) &&
-      fs.existsSync(path.join(distPath, 'index.html'));
-
-    if (!useCompiledSpa) {
-      const { createServer: createViteServer } = await import('vite');
-      const vite = await createViteServer({
-        server: {
-          middlewareMode: true,
-          hmr: false,
-          watch: null
-        },
-        appType: 'spa'
-      });
+    if (vite) {
       runtimeRouter.use(vite.middlewares);
     } else {
       runtimeRouter.use(express.static(distPath));
@@ -243,18 +384,29 @@ async function startServer() {
       });
 
     // Defer internal demo API and background worker until HTTP & Vite routes are ready
-    setTimeout(() => {
+    backgroundStartupTimer = setTimeout(() => {
+      if (isShuttingDown) return;
       if (process.env.START_DEMO_API !== 'false') {
-        import('./demo-api.js').catch((err) => {
-          console.warn('[DemoApi] Demo API startup warning:', err?.message || err);
-        });
+        import('./demo-api.js')
+          .then((mod) => {
+            shutdownResources.closeDemoApi = mod.closeDemoApiServer;
+          })
+          .catch((err) => {
+            console.warn('[DemoApi] Demo API startup warning:', err?.message || err);
+          });
       }
       if (process.env.START_INTERNAL_WORKER !== 'false') {
-        import('./src/worker.js').catch((err) => {
-          console.warn('[Worker] Internal worker startup warning:', err?.message || err);
-        });
+        process.env.FORTIX_EMBEDDED_WORKER = 'true';
+        import('./src/worker.js')
+          .then((mod) => {
+            shutdownResources.shutdownWorkers = mod.shutdownWorkers;
+          })
+          .catch((err) => {
+            console.warn('[Worker] Internal worker startup warning:', err?.message || err);
+          });
       }
     }, 150);
+    backgroundStartupTimer.unref?.();
   })();
 
   bootstrapPromise.catch((err) => {
@@ -272,38 +424,46 @@ async function startServer() {
 
   app.use(apiGlobalErrorHandler as any);
 
-  // Graceful shutdown
-  const shutdown = async () => {
+  // Graceful shutdown across HTTP, WebSockets, Vite, demo-api, workers, Redis, and PostgreSQL
+  const shutdown = async (signal: string) => {
     if (isShuttingDown) return;
     isShuttingDown = true;
-    console.log('Received shutdown signal, starting graceful shutdown...');
+    if (backgroundStartupTimer) {
+      clearTimeout(backgroundStartupTimer);
+      backgroundStartupTimer = null;
+    }
+    console.log(`[Server] Received ${signal}, starting graceful shutdown...`);
 
-    server.close(async () => {
-      console.log('HTTP server closed.');
-      try {
-        if (redisQuit) {
-          await redisQuit();
-          console.log('Redis connection closed.');
-        }
-      } catch (e) {
-        console.error('Error closing Redis connection:', e);
-      }
-      process.exit(0);
-    });
-
-    setTimeout(() => {
-      console.error('Could not close connections in time, forcefully shutting down');
+    const forceTimer = setTimeout(() => {
+      console.error('[Server] Could not close all resources within 10s, forcing exit');
       process.exit(1);
     }, 10000);
+    forceTimer.unref?.();
+
+    try {
+      await bootstrapPromise.catch(() => {});
+      const { errors } = await executeGracefulShutdown(shutdownResources);
+      clearTimeout(forceTimer);
+      if (errors.length > 0) {
+        console.error('[Server] Graceful shutdown finished with resource warnings:', errors);
+      } else {
+        console.log('[Server] All runtime resources closed cleanly.');
+      }
+      process.exit(0);
+    } catch (err) {
+      clearTimeout(forceTimer);
+      console.error('[Server] Fatal error during graceful shutdown:', err);
+      process.exit(1);
+    }
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 }
 
 if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
   startServer().catch((err) => {
-    console.error('[Server] Fatal startup error:', err);
+    console.error('[Server] Fatal startup error:', err?.message || err);
     process.exit(1);
   });
 }

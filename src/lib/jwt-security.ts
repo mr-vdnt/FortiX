@@ -133,6 +133,18 @@ export function extractRequestToken(req: {
   headers: Record<string, string | string[] | undefined>;
   cookies?: Record<string, string>;
 }): string | undefined {
+  const authHeader = req.headers?.authorization;
+  const fortixHeader = req.headers?.['x-fortix-token'];
+  const hasExplicitAuthHeader =
+    (typeof authHeader === 'string' && authHeader.trim().length > 0) ||
+    (Array.isArray(authHeader) && authHeader.length > 0) ||
+    (typeof fortixHeader === 'string' && fortixHeader.trim().length > 0) ||
+    (Array.isArray(fortixHeader) && fortixHeader.length > 0);
+
+  if (hasExplicitAuthHeader) {
+    return extractBearerOrFortixToken(req.headers || {});
+  }
+
   if (req.cookies) {
     if (typeof req.cookies.fortix_session === 'string' && req.cookies.fortix_session.length > 0) {
       return req.cookies.fortix_session;
@@ -160,7 +172,7 @@ export function extractRequestToken(req: {
     }
   }
 
-  return extractBearerOrFortixToken(req.headers || {});
+  return undefined;
 }
 
 export interface VerifiedUserContext {

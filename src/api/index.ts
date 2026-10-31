@@ -7,8 +7,8 @@ import { demoWorkspaceRouter } from './demo-workspace.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { requireEntitlement } from '../middleware/entitlements.js';
 import { csrfProtectionMiddleware } from '../lib/cors-csrf.js';
-import { evaluateReadinessContract } from '../lib/readiness.js';
-import { apiGlobalErrorHandler } from '../lib/error-tracker.js';
+import { buildReadinessPayload, evaluateReadinessContract } from '../lib/readiness.js';
+import { apiGlobalErrorHandler, getUncaughtErrorCount } from '../lib/error-tracker.js';
 import { projectsRouter } from './projects.js';
 import { apiRoutesRouter } from './routes.js';
 import { apiKeysRouter } from './keys.js';
@@ -98,17 +98,9 @@ export function setupApiRoutes(app: Express) {
     const health = await getDependenciesHealth();
     const evaluation = evaluateReadinessContract(health);
 
-    res.status(evaluation.httpStatus).json({
-      status: evaluation.status,
-      deploymentMode: evaluation.deploymentMode,
-      persistenceVerified: evaluation.persistenceVerified,
-      postgres: health.postgres.status,
-      postgresStorageMode: health.postgres.storageMode,
-      postgresMigrationStatus: health.postgres.migrationStatus || 'verified',
-      redis: health.redis.status,
-      redisStorageMode: health.redis.storageMode,
-      warnings: evaluation.warnings,
-    });
+    res
+      .status(evaluation.httpStatus)
+      .json(buildReadinessPayload(health, evaluation, getUncaughtErrorCount()));
   });
 
   app.get('/api/health/dependencies', async (_req, res) => {

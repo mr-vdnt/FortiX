@@ -310,3 +310,18 @@ export function apiGlobalErrorHandler(
     recoveryHint: getRecoveryHintForStatus(statusCode, code),
   });
 }
+
+let runtimeUncaughtErrors = 0;
+
+export function incrementUncaughtErrorCount(): number {
+  runtimeUncaughtErrors += 1;
+  return runtimeUncaughtErrors;
+}
+
+export function getUncaughtErrorCount(): number {
+  return runtimeUncaughtErrors;
+}
+
+export function resetUncaughtErrorCountForTests(): void {
+  runtimeUncaughtErrors = 0;
+}
