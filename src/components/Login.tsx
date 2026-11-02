@@ -12,15 +12,10 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
-  KeyRound,
 } from 'lucide-react';
 import { setCsrfToken } from '../lib/api.js';
 
 export function Login({ onLogin }: { onLogin: () => void }) {
-  const metaEnv = (import.meta as unknown as { env?: Record<string, unknown> }).env;
-  const showSandboxHelper =
-    !Boolean(metaEnv?.PROD) || metaEnv?.VITE_ENABLE_DEMO_HINTS === 'true';
-
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -48,14 +43,6 @@ export function Login({ onLogin }: { onLogin: () => void }) {
 
   const switchMode = (nextMode: 'login' | 'register') => {
     setMode(nextMode);
-    setError('');
-  };
-
-  const fillDemoCredentials = () => {
-    if (!showSandboxHelper) return;
-    setMode('login');
-    setEmail('admin@fortix.test');
-    setPassword('password123');
     setError('');
   };
 
@@ -420,24 +407,6 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                 {!isSubmitting && <ArrowRight size={15} />}
               </button>
             </form>
-
-            {/* Development-only Sandbox Credentials Helper (never rendered in production builds) */}
-            {showSandboxHelper && (
-              <div className="mt-6 pt-5 border-t border-white/10 flex items-center justify-between gap-3">
-                <div className="text-xs text-zinc-400 min-w-0">
-                  <span className="text-zinc-300 font-medium">Dev Sandbox Only:</span>{' '}
-                  <span className="font-mono text-zinc-300">admin@fortix.test</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={fillDemoCredentials}
-                  className="px-3 py-1.5 rounded-lg bg-[#0a0c13] hover:bg-[#1c2133] border border-white/15 text-xs font-medium text-zinc-200 hover:text-white transition-colors flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-                >
-                  <KeyRound size={12} className="text-primary" />
-                  <span>Fill Dev Sandbox</span>
-                </button>
-              </div>
-            )}
 
             <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-zinc-400">
               <span>Protected by HttpOnly cookie &amp; CSRF guard</span>
