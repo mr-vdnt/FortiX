@@ -12,15 +12,32 @@ import {
   AlertCircle,
   CheckCircle2,
   ArrowRight,
+  LogOut,
 } from 'lucide-react';
-import { setCsrfToken } from '../lib/api.js';
+import { setCsrfToken, setMemorySessionToken } from '../lib/api.js';
 
-export function Login({ onLogin }: { onLogin: () => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+export function Login({
+  onLogin,
+  initialMode = 'login',
+  activeUser,
+  onContinueSession,
+  onSignOutCurrent,
+}: {
+  onLogin: () => Promise<void> | void;
+  initialMode?: 'login' | 'register';
+  activeUser?: { email: string; role: string } | null;
+  onContinueSession?: () => void;
+  onSignOutCurrent?: () => Promise<void> | void;
+}) {
+  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  React.useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [isShaking, setIsShaking] = useState(false);
@@ -101,7 +118,32 @@ export function Login({ onLogin }: { onLogin: () => void }) {
       if (res.ok) {
         const data = await res.json();
         setCsrfToken(data.csrfToken);
-        onLogin();
+        setMemorySessionToken(null);
+
+        // Verify whether the browser accepted the HttpOnly session cookie (blocked in some strict cross-origin iframes)
+        let cookieAccepted = false;
+        try {
+          const meCheck = await fetch('/api/auth/me', { credentials: 'include' });
+          cookieAccepted = meCheck.ok;
+        } catch {
+          cookieAccepted = false;
+        }
+
+        if (!cookieAccepted) {
+          const fallbackRes = await fetch('/api/auth/login', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'iframe-memory' },
+            body: JSON.stringify({ email: normalizedEmail, password }),
+          });
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json().catch(() => ({}));
+            if (fallbackData.csrfToken) setCsrfToken(fallbackData.csrfToken);
+            if (fallbackData.token) setMemorySessionToken(fallbackData.token);
+          }
+        }
+
+        await onLogin();
       } else {
         const errPayload = await res.json().catch(() => ({}));
         if (res.status === 429) {
@@ -263,6 +305,37 @@ export function Login({ onLogin }: { onLogin: () => void }) {
               isShaking ? 'animate-shake' : ''
             }`}
           >
+            {activeUser && (
+              <div className="mb-5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-3.5 text-xs text-emerald-200 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">
+                    Signed in as <strong className="font-mono text-white">{activeUser.email}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {onContinueSession && (
+                    <button
+                      type="button"
+                      onClick={onContinueSession}
+                      className="flex-1 py-1.5 px-3 rounded-lg bg-primary text-zinc-950 font-semibold hover:bg-primary-hover transition-colors text-center"
+                    >
+                      Open Workspace
+                    </button>
+                  )}
+                  {onSignOutCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => void onSignOutCurrent()}
+                      className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-[#0a0c13] border border-white/15 text-zinc-200 hover:text-white transition-colors"
+                    >
+                      <LogOut size={13} />
+                      <span>Sign Out</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Mode Switcher Tabs */}
             <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#0a0c13] border border-white/10 mb-6">
               <button
@@ -408,7 +481,33 @@ export function Login({ onLogin }: { onLogin: () => void }) {
               </button>
             </form>
 
-            <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-zinc-400">
+            <div className="mt-4 text-center text-xs text-zinc-400">
+              {mode === 'login' ? (
+                <>
+                  First time using FortiX?{' '}
+                  <button
+                    type="button"
+                    onClick={() => switchMode('register')}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    Create an operator account
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-zinc-400">
               <span>Protected by HttpOnly cookie &amp; CSRF guard</span>
               <div className="flex items-center gap-3">
                 <Link to="/privacy" className="hover:text-zinc-200 transition-colors">

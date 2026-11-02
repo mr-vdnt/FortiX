@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { fetchWithAuth } from "../../lib/api.js";
+import { fetchWithAuth, getActiveProjectId } from "../../lib/api.js";
 import { Terminal, AlertTriangle, Info, AlertOctagon, ArrowUpDown, Filter, Search } from 'lucide-react';
 import { LogDetailDrawer } from './LogDetailDrawer.js';
 import { useProject } from '../../context/ProjectContext.js';
@@ -19,7 +19,7 @@ export function SystemLogs() {
   
   // Drawer state
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const projectId = currentProject?.id || localStorage.getItem('fortix_project_id') || '';
+  const projectId = currentProject?.id || getActiveProjectId() || '';
 
   useEffect(() => {
     const timer = setTimeout(() => {

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import rateLimit from 'express-rate-limit';
 import { db } from '../db/index.js';
-import { users } from '../db/schema.js';
+import { users, organizations, projects } from '../db/schema.js';
 import {
   getJwtSecret,
   computePasswordVersion,
@@ -58,7 +58,7 @@ const registerSchema = z.object({
 
 router.post('/register', async (req, res) => {
   try {
-    const { email, password } = registerSchema.parse(req.body);
+    const { email, password, name } = registerSchema.parse(req.body);
 
     const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     if (existing) {
@@ -77,6 +77,24 @@ router.post('/register', async (req, res) => {
         emailVerified: false,
       })
       .returning();
+
+    // Provision default organization & starter project so newly registered operators have an active workspace immediately
+    try {
+      const orgId = uuidv4();
+      await db.insert(organizations).values({
+        id: orgId,
+        name: name ? `${name}'s Organization` : 'Default Organization',
+        ownerId: user.id,
+      });
+      await db.insert(projects).values({
+        id: uuidv4(),
+        orgId,
+        name: 'Primary Gateway',
+        environment: 'development',
+      });
+    } catch (workspaceErr) {
+      console.warn('[Auth] Default workspace provisioning warning:', workspaceErr);
+    }
 
     let verificationPreviewToken: string | undefined;
     try {

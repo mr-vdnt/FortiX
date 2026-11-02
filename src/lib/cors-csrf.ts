@@ -57,6 +57,25 @@ export function resolveCookieSameSite(isHttps: boolean): 'strict' | 'lax' | 'non
   return isHttps ? 'none' : 'lax';
 }
 
+function markCookiePartitionedIfHttpsCrossSite(
+  res: Response,
+  cookieName: string,
+  isHttps: boolean,
+  sameSite: 'strict' | 'lax' | 'none'
+): void {
+  if (!isHttps || sameSite !== 'none') return;
+  const current = res.getHeader('Set-Cookie');
+  if (!current) return;
+  const list = Array.isArray(current) ? current.map(String) : [String(current)];
+  const updated = list.map((entry) => {
+    if (entry.startsWith(`${cookieName}=`) && !/;\s*Partitioned\b/i.test(entry)) {
+      return `${entry}; Partitioned`;
+    }
+    return entry;
+  });
+  res.setHeader('Set-Cookie', updated);
+}
+
 export function issueSessionCookie(req: Request, res: Response, jwtToken: string, maxAgeMs = 24 * 60 * 60 * 1000): void {
   const isHttps = isHttpsRequest(req);
   const sameSite = resolveCookieSameSite(isHttps);
@@ -68,6 +87,7 @@ export function issueSessionCookie(req: Request, res: Response, jwtToken: string
     path: '/',
     maxAge: maxAgeMs,
   });
+  markCookiePartitionedIfHttpsCrossSite(res, SESSION_COOKIE_NAME, isHttps, sameSite);
 }
 
 export function issueCsrfCookie(req: Request, res: Response, maxAgeMs = 24 * 60 * 60 * 1000): string {
@@ -87,6 +107,7 @@ export function issueCsrfCookie(req: Request, res: Response, maxAgeMs = 24 * 60 
     path: '/',
     maxAge: maxAgeMs,
   });
+  markCookiePartitionedIfHttpsCrossSite(res, CSRF_COOKIE_NAME, isHttps, sameSite);
 
   return csrfToken;
 }
@@ -101,9 +122,11 @@ export function clearSessionCookies(req: Request, res: Response): void {
   } as const;
 
   res.clearCookie(SESSION_COOKIE_NAME, { ...opts, httpOnly: true });
+  markCookiePartitionedIfHttpsCrossSite(res, SESSION_COOKIE_NAME, isHttps, sameSite);
   res.clearCookie(LEGACY_SESSION_COOKIE_NAME, { ...opts, httpOnly: true });
   res.clearCookie(LEGACY_SESSION_COOKIE_NAME, { path: '/' });
   res.clearCookie(CSRF_COOKIE_NAME, { ...opts, httpOnly: false });
+  markCookiePartitionedIfHttpsCrossSite(res, CSRF_COOKIE_NAME, isHttps, sameSite);
 }
 
 export function getConfiguredAllowedOrigins(): Set<string> {

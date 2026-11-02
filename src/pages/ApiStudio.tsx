@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Card } from '../components/ui/card.js';
 import { useProject } from '../context/ProjectContext.js';
-import { fetchWithAuth, parseApiErrorResponse, trackProductEvent } from '../lib/api.js';
+import { fetchWithAuth, parseApiErrorResponse, trackProductEvent, getActiveProjectId } from '../lib/api.js';
 
 interface StudioFieldDef {
   name: string;
@@ -143,7 +143,7 @@ function buildSamplePayload(fields: StudioFieldDef[], partial = false): string {
 
 export default function ApiStudio() {
   const { currentProject } = useProject();
-  const projectId = currentProject?.id || localStorage.getItem('fortix_project_id') || '';
+  const projectId = currentProject?.id || getActiveProjectId() || '';
 
   const [studioApis, setStudioApis] = useState<StudioApiSummary[]>([]);
   const [selectedApiId, setSelectedApiId] = useState<string>('');

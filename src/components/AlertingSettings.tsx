@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { fetchWithAuth } from '../lib/api.js';
+import { fetchWithAuth, getActiveProjectId } from '../lib/api.js';
 import { Trash2, Plus, Check } from 'lucide-react';
 
 export function AlertingSettings({ user }: { user?: any }) {
   const [webhooks, setWebhooks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const projectId = localStorage.getItem('fortix_project_id') || '';
+  const projectId = getActiveProjectId() || '';
 
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');

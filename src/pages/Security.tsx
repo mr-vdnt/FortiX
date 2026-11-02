@@ -17,7 +17,7 @@ import {
   Gauge,
   ArrowUpRight
 } from 'lucide-react';
-import { fetchWithAuth } from '../lib/api.js';
+import { fetchWithAuth, getActiveProjectId } from '../lib/api.js';
 import { useProject } from '../context/ProjectContext.js';
 
 interface RouteItem {
@@ -49,7 +49,7 @@ type FilterMode = 'all' | 'rate_limited' | 'waf' | 'ssrf';
 
 export default function Security() {
   const { currentProject } = useProject();
-  const projectId = currentProject?.id || localStorage.getItem('fortix_project_id') || '';
+  const projectId = currentProject?.id || getActiveProjectId() || '';
 
   const [policies, setPolicies] = useState<SecurityPolicyItem[]>([]);
   const [routes, setRoutes] = useState<RouteItem[]>([]);

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { getMemorySessionToken } from '../lib/api.js';
 
 export type TelemetryConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'degraded' | 'disconnected' | 'failed';
 
@@ -63,6 +64,10 @@ export function SocketProvider({ children, projectId }: { children: React.ReactN
 
     const s = io(window.location.origin, {
       withCredentials: true,
+      auth: (cb) => {
+        const memToken = getMemorySessionToken();
+        cb(memToken ? { token: memToken } : {});
+      },
       transports: ['polling', 'websocket'],
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,

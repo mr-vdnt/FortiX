@@ -1,4 +1,4 @@
-import { fetchWithAuth } from '../lib/api.js';
+import { fetchWithAuth, getActiveProjectId } from '../lib/api.js';
 import { useEffect, useState } from 'react';
 import React from 'react';
 import {
@@ -38,7 +38,7 @@ export default function Resilience() {
   const [verifications, setVerifications] = useState<any[]>([]);
   const [systemHealth, setSystemHealth] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const projectId = localStorage.getItem('fortix_project_id') || '';
+  const projectId = getActiveProjectId() || '';
 
   const loadData = () => {
     fetchWithAuth(`/api/control/metrics/resilience-summary?projectId=${projectId}`)

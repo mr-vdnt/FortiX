@@ -1,4 +1,4 @@
-import { fetchWithAuth, trackProductEvent } from "../lib/api.js";
+import { fetchWithAuth, trackProductEvent, getActiveProjectId } from "../lib/api.js";
 import React, { useEffect, useState } from 'react';
 import { Card } from '../components/ui/card.js';
 import { Play, XCircle, CheckCircle, Clock, ShieldAlert, Target, ShieldCheck, Zap, RotateCcw, Trash2, AlertTriangle, Layers, Activity, RefreshCw } from 'lucide-react';
@@ -84,7 +84,7 @@ export default function Experiments() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectId: localStorage.getItem('fortix_project_id') || '',
+          projectId: currentProject?.id || getActiveProjectId() || '',
           routeId: selectedRouteId,
           type: selectedType,
           config: { latencyMs: 800, durationMs: 15000, hypothesis },

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { FORTIX_DATASET } from '../data/publicApisDataset.js';
 import { ApiItem } from '../types/publicApi.js';
-import { fetchWithAuth } from '../lib/api.js';
+import { fetchWithAuth, getActiveProjectId } from '../lib/api.js';
 import { useProject } from '../context/ProjectContext.js';
 
 const FAVORITES_STORAGE_KEY = 'fortix_public_api_favorites';
@@ -248,7 +248,7 @@ export default function PublicApiDirectory() {
       return;
     }
 
-    const projectId = currentProject?.id || localStorage.getItem('fortix_project_id') || '';
+    const projectId = currentProject?.id || getActiveProjectId() || '';
     if (!projectId) {
       setPendingRouteItem(null);
       setImportFeedback({ type: 'error', message: 'Select or create an active project first before importing a route.' });

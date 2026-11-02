@@ -1,4 +1,4 @@
-import { fetchWithAuth, parseApiErrorResponse, trackProductEvent } from '../lib/api.js';
+import { fetchWithAuth, parseApiErrorResponse, trackProductEvent, getActiveProjectId } from '../lib/api.js';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Card } from '../components/ui/card.js';
 import { Link, useOutletContext } from 'react-router-dom';
@@ -26,7 +26,7 @@ export default function APIs() {
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null);
   const [confirmRevokeKeyId, setConfirmRevokeKeyId] = useState<string | null>(null);
 
-  const projectId = currentProject?.id || localStorage.getItem('fortix_project_id') || '';
+  const projectId = currentProject?.id || getActiveProjectId() || '';
 
   const fetchData = useCallback(async () => {
     setIsFetching(true);

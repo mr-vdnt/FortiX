@@ -7,7 +7,15 @@ import {
   Settings as SettingsIcon, Shield, User, Globe, AlertTriangle, Bell, 
   Server, Activity, Save, CheckCircle2, History, RefreshCw, Sliders, Check, FolderKanban
 } from 'lucide-react';
-import { fetchWithAuth, setCsrfToken, isAnalyticsOptedOut, setAnalyticsOptOut } from '../lib/api.js';
+import {
+  fetchWithAuth,
+  setCsrfToken,
+  isAnalyticsOptedOut,
+  setAnalyticsOptOut,
+  getActiveProjectId,
+  setActiveProjectId,
+  clearActiveProjectId,
+} from '../lib/api.js';
 
 const TABS = [
   { id: 'projects', label: 'API Projects', icon: FolderKanban },
@@ -42,7 +50,7 @@ export default function Settings() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const projectId = localStorage.getItem('fortix_project_id') || '';
+  const projectId = getActiveProjectId() || '';
 
   // Data states
   const [user, setUser] = useState<{ email: string; role: string; emailVerified?: boolean; createdAt: string } | null>(null);
@@ -145,7 +153,7 @@ export default function Settings() {
           setProject(p);
           setProjectName(p.name);
           if (!projectId && p.id) {
-            localStorage.setItem('fortix_project_id', p.id);
+            setActiveProjectId(p.id);
           }
         }
       }
@@ -355,7 +363,7 @@ export default function Settings() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setCsrfToken(null);
-        localStorage.removeItem('fortix_project_id');
+        clearActiveProjectId();
         window.dispatchEvent(new CustomEvent('fortix:auth-unauthorized'));
       } else {
         setDeleteAccountError(data.error || 'Failed to delete account. Verify your password.');

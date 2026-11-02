@@ -1,12 +1,47 @@
 let memoryCsrfToken: string | null = null;
+let memorySessionToken: string | null = null;
+let memoryProjectId: string | null = null;
+
+export function safeStorageGet(key: string): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function safeStorageSet(key: string, value: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore cross-origin iframe third-party storage restrictions
+  }
+}
+
+export function safeStorageRemove(key: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore cross-origin iframe third-party storage restrictions
+  }
+}
 
 // Purge any legacy bearer token left in localStorage from older versions
-if (typeof window !== 'undefined') {
-  try {
-    window.localStorage.removeItem('fortix_token');
-  } catch {
-    // Ignore storage access restrictions
+safeStorageRemove('fortix_token');
+
+export function setMemorySessionToken(token?: string | null): void {
+  if (typeof token === 'string' && token.length > 0) {
+    memorySessionToken = token;
+  } else if (token === null) {
+    memorySessionToken = null;
   }
+}
+
+export function getMemorySessionToken(): string | null {
+  return memorySessionToken;
 }
 
 export function setCsrfToken(token?: string | null): void {
@@ -38,32 +73,37 @@ export function getCsrfToken(): string | undefined {
 }
 
 export function getActiveProjectId(): string | null {
-  try {
-    return localStorage.getItem('fortix_project_id');
-  } catch {
-    return null;
+  const stored = safeStorageGet('fortix_project_id');
+  if (stored) {
+    memoryProjectId = stored;
+    return stored;
   }
+  return memoryProjectId;
 }
 
 export function setActiveProjectId(id: string): void {
-  try {
-    localStorage.setItem('fortix_project_id', id);
-  } catch {}
-  window.dispatchEvent(new CustomEvent('fortix:project-switched', { detail: { projectId: id } }));
-}
-
-export function isAnalyticsOptedOut(): boolean {
-  try {
-    return localStorage.getItem('fortix_analytics_opt_out') === 'true';
-  } catch {
-    return false;
+  memoryProjectId = id || null;
+  if (id) {
+    safeStorageSet('fortix_project_id', id);
+  } else {
+    safeStorageRemove('fortix_project_id');
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('fortix:project-switched', { detail: { projectId: id } }));
   }
 }
 
+export function clearActiveProjectId(): void {
+  memoryProjectId = null;
+  safeStorageRemove('fortix_project_id');
+}
+
+export function isAnalyticsOptedOut(): boolean {
+  return safeStorageGet('fortix_analytics_opt_out') === 'true';
+}
+
 export function setAnalyticsOptOut(optOut: boolean): void {
-  try {
-    localStorage.setItem('fortix_analytics_opt_out', optOut ? 'true' : 'false');
-  } catch {}
+  safeStorageSet('fortix_analytics_opt_out', optOut ? 'true' : 'false');
 }
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -72,6 +112,10 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const projectId = getActiveProjectId();
   const headers = new Headers(options.headers || {});
   const method = (options.method || 'GET').toUpperCase();
+
+  if (memorySessionToken && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${memorySessionToken}`);
+  }
 
   if (MUTATING_METHODS.has(method)) {
     const csrf = getCsrfToken();
@@ -123,6 +167,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
   if (response.status === 401) {
     memoryCsrfToken = null;
+    memorySessionToken = null;
     window.dispatchEvent(new CustomEvent('fortix:auth-unauthorized'));
   }
 
