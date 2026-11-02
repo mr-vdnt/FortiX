@@ -53,6 +53,34 @@ export function stripTrailingDots(host: string): string {
   return host.trim().replace(/\.+$/, '');
 }
 
+export const STUDIO_INTERNAL_HOST = 'fortix-studio.internal';
+const STUDIO_TARGET_PATH_RE = /^\/studio\/([a-zA-Z0-9_-]{8,64})$/;
+
+export function buildStudioInternalTargetUrl(studioApiId: string): string {
+  return `http://${STUDIO_INTERNAL_HOST}/studio/${encodeURIComponent(studioApiId)}`;
+}
+
+export function isAllowedStudioTargetUrl(parsed: URL): boolean {
+  if (parsed.protocol !== 'http:') return false;
+  if (parsed.username || parsed.password) return false;
+  if (parsed.port !== '') return false;
+  if (parsed.search || parsed.hash) return false;
+  const cleanHost = stripTrailingDots(parsed.hostname.toLowerCase());
+  if (cleanHost !== STUDIO_INTERNAL_HOST) return false;
+  return STUDIO_TARGET_PATH_RE.test(parsed.pathname);
+}
+
+export function extractStudioApiIdFromTarget(targetUrl: string): string | null {
+  try {
+    const parsed = new URL(targetUrl.trim());
+    if (!isAllowedStudioTargetUrl(parsed)) return null;
+    const match = parsed.pathname.match(STUDIO_TARGET_PATH_RE);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 export function isAllowedDemoApiUrl(parsed: URL): boolean {
   if (parsed.username || parsed.password) {
     return false;
@@ -380,6 +408,11 @@ export function isSafeTarget(target: string): boolean {
       return isAllowedDemoApiUrl(parsed);
     }
 
+    // Exact allowlist for FortiX API Studio in-process upstream targets (http://fortix-studio.internal/studio/:id)
+    if (cleanHost === STUDIO_INTERNAL_HOST) {
+      return isAllowedStudioTargetUrl(parsed);
+    }
+
     // Check hostname
     if (isForbiddenHost(parsed.hostname)) {
       return false;
@@ -403,7 +436,7 @@ export async function isSafeTargetAsync(target: string): Promise<boolean> {
     }
 
     const parsed = new URL(target.trim());
-    if (isAllowedDemoApiUrl(parsed)) {
+    if (isAllowedDemoApiUrl(parsed) || isAllowedStudioTargetUrl(parsed)) {
       return true;
     }
 

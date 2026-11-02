@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, jsonb, integer, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, jsonb, integer, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // Using uuid
@@ -213,3 +213,58 @@ export const workflowRuns = pgTable('workflow_runs', {
   };
 });
 
+export const studioApis = pgTable('studio_apis', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  routeId: text('route_id').references(() => apiRoutes.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  description: text('description').default('').notNull(),
+  basePath: text('base_path').notNull(),
+  version: text('version').default('v1').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    studioApiProjectIdx: index('studio_apis_project_idx').on(table.projectId, table.createdAt),
+    studioApiPathVersionUnique: uniqueIndex('studio_apis_project_base_version_idx').on(
+      table.projectId,
+      table.basePath,
+      table.version
+    ),
+  };
+});
+
+export const studioResources = pgTable('studio_resources', {
+  id: text('id').primaryKey(),
+  apiId: text('api_id').references(() => studioApis.id, { onDelete: 'cascade' }).notNull(),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  fields: jsonb('fields').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    studioResourceApiIdx: index('studio_resources_api_idx').on(table.apiId),
+    studioResourceSlugUnique: uniqueIndex('studio_resources_api_slug_idx').on(table.apiId, table.slug),
+  };
+});
+
+export const studioRecords = pgTable('studio_records', {
+  id: text('id').primaryKey(),
+  resourceId: text('resource_id').references(() => studioResources.id, { onDelete: 'cascade' }).notNull(),
+  apiId: text('api_id').references(() => studioApis.id, { onDelete: 'cascade' }).notNull(),
+  projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  recordId: text('record_id').notNull(),
+  data: jsonb('data').notNull(),
+  version: integer('version').default(1).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    studioRecordResourceIdx: index('studio_records_resource_idx').on(table.resourceId, table.recordId),
+    studioRecordUnique: uniqueIndex('studio_records_resource_record_id_idx').on(
+      table.resourceId,
+      table.recordId
+    ),
+  };
+});

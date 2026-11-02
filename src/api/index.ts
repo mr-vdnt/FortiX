@@ -25,6 +25,7 @@ import { systemRouter, getDependenciesHealth } from './system.js';
 import { dlqRouter } from './dlq.js';
 import reportsRouter from './reports.js';
 import { workflowRunsRouter } from './runs.js';
+import { studioRouter } from './studio.js';
 import { openApiRouter, getSwaggerHtml } from './openapi.js';
 import { register, httpRequestsTotal, httpRequestDurationSeconds } from '../lib/metrics.js';
 import pinoHttp from 'pino-http';
@@ -152,6 +153,7 @@ export function setupApiRoutes(app: Express) {
   app.use('/api/control/queue', authenticate, dlqRouter);
   app.use('/api/control/admin', authenticate, requireAdmin, adminRouter);
   app.use('/api/control/runs', authenticate, workflowRunsRouter);
+  app.use('/api/control/studio', authenticate, studioRouter);
   app.use('/api', reportsRouter);
 
   // Structured JSON 404 handler for unmatched /api/* routes (never fall through to HTML SPA)

@@ -16,10 +16,12 @@ import {
   Moon,
   Sun,
   Globe,
+  Layers,
   MailCheck,
   CheckCircle2,
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard.js';
+import ApiStudio from './pages/ApiStudio.js';
 import APIs from './pages/APIs.js';
 import PublicApiDirectory from './pages/PublicApiDirectory.js';
 import Experiments from './pages/Experiments.js';
@@ -296,6 +298,7 @@ function Layout({
             <div className="text-xs font-semibold text-muted mb-1 px-2">Workspace</div>
             <nav className="flex-1 space-y-1 overflow-y-auto">
               <NavItem to="/" icon={<Activity size={16} />} label="Dashboard" active={location.pathname === '/'} onClick={() => setIsSidebarOpen(false)} />
+              <NavItem to="/studio" icon={<Layers size={16} />} label="API Studio" active={location.pathname === '/studio'} onClick={() => setIsSidebarOpen(false)} />
               <NavItem to="/apis" icon={<Server size={16} />} label="Protected APIs" active={location.pathname === '/apis'} onClick={() => setIsSidebarOpen(false)} />
               <NavItem to="/directory" icon={<Globe size={16} />} label="Public APIs" active={location.pathname === '/directory'} onClick={() => setIsSidebarOpen(false)} />
               <NavItem to="/security" icon={<Shield size={16} />} label="Security" active={location.pathname === '/security'} onClick={() => setIsSidebarOpen(false)} />
@@ -550,6 +553,7 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
+            <Route path="studio" element={<ApiStudio />} />
             <Route path="apis" element={<APIs />} />
             <Route path="directory" element={<PublicApiDirectory />} />
             <Route path="security" element={<Security />} />

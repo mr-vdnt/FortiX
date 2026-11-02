@@ -239,3 +239,69 @@ CREATE POLICY "fortix_workflow_runs_tenant_isolation" ON "workflow_runs"
         AND o."owner_id" = current_setting('app.current_user_id', true)
     )
   );
+
+ALTER TABLE "studio_apis" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fortix_studio_apis_tenant_isolation" ON "studio_apis";
+CREATE POLICY "fortix_studio_apis_tenant_isolation" ON "studio_apis"
+  USING (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR EXISTS (
+      SELECT 1 FROM "projects" p
+      JOIN "organizations" o ON o."id" = p."org_id"
+      WHERE p."id" = "studio_apis"."project_id"
+        AND o."owner_id" = current_setting('app.current_user_id', true)
+    )
+  )
+  WITH CHECK (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR EXISTS (
+      SELECT 1 FROM "projects" p
+      JOIN "organizations" o ON o."id" = p."org_id"
+      WHERE p."id" = "studio_apis"."project_id"
+        AND o."owner_id" = current_setting('app.current_user_id', true)
+    )
+  );
+
+ALTER TABLE "studio_resources" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fortix_studio_resources_tenant_isolation" ON "studio_resources";
+CREATE POLICY "fortix_studio_resources_tenant_isolation" ON "studio_resources"
+  USING (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR EXISTS (
+      SELECT 1 FROM "projects" p
+      JOIN "organizations" o ON o."id" = p."org_id"
+      WHERE p."id" = "studio_resources"."project_id"
+        AND o."owner_id" = current_setting('app.current_user_id', true)
+    )
+  )
+  WITH CHECK (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR EXISTS (
+      SELECT 1 FROM "projects" p
+      JOIN "organizations" o ON o."id" = p."org_id"
+      WHERE p."id" = "studio_resources"."project_id"
+        AND o."owner_id" = current_setting('app.current_user_id', true)
+    )
+  );
+
+ALTER TABLE "studio_records" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fortix_studio_records_tenant_isolation" ON "studio_records";
+CREATE POLICY "fortix_studio_records_tenant_isolation" ON "studio_records"
+  USING (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR EXISTS (
+      SELECT 1 FROM "projects" p
+      JOIN "organizations" o ON o."id" = p."org_id"
+      WHERE p."id" = "studio_records"."project_id"
+        AND o."owner_id" = current_setting('app.current_user_id', true)
+    )
+  )
+  WITH CHECK (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR EXISTS (
+      SELECT 1 FROM "projects" p
+      JOIN "organizations" o ON o."id" = p."org_id"
+      WHERE p."id" = "studio_records"."project_id"
+        AND o."owner_id" = current_setting('app.current_user_id', true)
+    )
+  );

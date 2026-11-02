@@ -1,10 +1,10 @@
 import express from 'express';
 import { db } from '../db/index.js';
-import { apiRoutes } from '../db/schema.js';
+import { apiRoutes, studioApis } from '../db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { requireProjectOwnership } from './projects.js';
-import { isSafeTarget } from '../gateway/ssrf.js';
+import { isSafeTarget, extractStudioApiIdFromTarget } from '../gateway/ssrf.js';
 import { z } from 'zod';
 
 const router = express.Router();
@@ -31,6 +31,21 @@ router.post('/', requireProjectOwnership, async (req, res) => {
 
     if (!isSafeTarget(targetUrl)) {
       return res.status(400).json({ error: 'Target URL is not permitted by security policy (SSRF protection)' });
+    }
+
+    const studioApiId = extractStudioApiIdFromTarget(targetUrl);
+    if (studioApiId) {
+      const [ownedStudioApi] = await db
+        .select({ id: studioApis.id })
+        .from(studioApis)
+        .where(and(eq(studioApis.id, studioApiId), eq(studioApis.projectId, projectId)))
+        .limit(1);
+
+      if (!ownedStudioApi) {
+        return res.status(403).json({
+          error: 'Forbidden: Studio API target does not belong to this project',
+        });
+      }
     }
     
     const [newRoute] = await db.insert(apiRoutes).values({

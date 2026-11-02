@@ -1193,6 +1193,67 @@ export const openApiSpec = {
           '500': { description: 'Upstream gateway error / injected chaos' }
         }
       }
+    },
+    '/api/control/studio/apis': {
+      get: {
+        summary: 'List FortiX API Studio Workspaces',
+        tags: ['API Studio'],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'projectId', in: 'query', required: true, schema: { type: 'string' } }
+        ],
+        responses: {
+          '200': { description: 'List of Studio APIs with linked gateway routes, security policies, and record counts' },
+          '401': { description: 'Unauthorized' },
+          '403': { description: 'Forbidden' }
+        }
+      },
+      post: {
+        summary: 'Create FortiX API Studio Workspace & Gateway Route',
+        tags: ['API Studio'],
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['projectId', 'name'],
+                properties: {
+                  projectId: { type: 'string' },
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  basePath: { type: 'string', default: '/api/store' },
+                  version: { type: 'string', default: 'v1' },
+                  template: { type: 'string', enum: ['products_100', 'store_suite', 'empty'], default: 'products_100' },
+                  issueApiKey: { type: 'boolean', default: false }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '201': { description: 'Studio API created, seeded, and registered behind FortiX Gateway' },
+          '400': { description: 'Validation error' },
+          '403': { description: 'Forbidden' },
+          '409': { description: 'Base path and version collision' }
+        }
+      }
+    },
+    '/api/control/studio/apis/{apiId}/openapi': {
+      get: {
+        summary: 'Export Generated OpenAPI 3.0.3 Specification for Studio API',
+        tags: ['API Studio'],
+        security: [{ BearerAuth: [] }],
+        parameters: [
+          { name: 'apiId', in: 'path', required: true, schema: { type: 'string' } },
+          { name: 'projectId', in: 'query', required: true, schema: { type: 'string' } }
+        ],
+        responses: {
+          '200': { description: 'OpenAPI 3.0.3 JSON document' },
+          '404': { description: 'Studio API not found' }
+        }
+      }
     }
   }
 };

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Activity, Server, Shield, Play, ShieldAlert, BarChart, Settings, PanelLeft, Globe, ExternalLink } from 'lucide-react';
+import { Search, Activity, Server, Shield, Play, ShieldAlert, BarChart, Settings, PanelLeft, Globe, ExternalLink, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FORTIX_DATASET } from '../data/publicApisDataset.js';
 
@@ -24,6 +24,7 @@ export function CommandPalette({ isOpen, setIsOpen, toggleSidebar }: { isOpen: b
 
   const actions = [
     { id: 'dashboard', title: 'Go to Dashboard', icon: <Activity size={16} />, onSelect: () => { navigate('/'); setIsOpen(false); } },
+    { id: 'studio', title: 'Open FortiX API Studio (Create & Test APIs)', icon: <Layers size={16} />, onSelect: () => { navigate('/studio'); setIsOpen(false); } },
     { id: 'directory', title: 'Browse Public API Directory (814 APIs)', icon: <Globe size={16} />, onSelect: () => { navigate('/directory'); setIsOpen(false); } },
     { id: 'apis', title: 'Go to Protected APIs & Keys', icon: <Server size={16} />, onSelect: () => { navigate('/apis'); setIsOpen(false); } },
     { id: 'security', title: 'Go to Security Policies', icon: <Shield size={16} />, onSelect: () => { navigate('/security'); setIsOpen(false); } },

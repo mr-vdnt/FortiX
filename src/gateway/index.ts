@@ -6,12 +6,20 @@ import crypto from 'crypto';
 import { db } from '../db/index.js';
 import { apiRoutes, apiKeys, experiments, securityPolicies } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { isSafeTarget, isAllowedDemoApiUrl, safeHttpAgent, safeHttpsAgent } from './ssrf.js';
+import {
+  isSafeTarget,
+  isAllowedDemoApiUrl,
+  isAllowedStudioTargetUrl,
+  extractStudioApiIdFromTarget,
+  safeHttpAgent,
+  safeHttpsAgent,
+} from './ssrf.js';
 import { v4 as uuidv4 } from 'uuid';
 import { enqueueMetric, enqueueSecurityEvent } from '../lib/telemetry.js';
 import { checkRateLimit } from '../rate-limit/redis.js';
 import { detectThreats } from '../threat-detection/index.js';
 import { broadcast } from '../socket.js';
+import { handleStudioUpstreamRequest } from '../studio/target-handler.js';
 import bcrypt from 'bcryptjs';
 
 // Cache for verified API keys to prevent CPU threadpool starvation under proxy load.
@@ -447,8 +455,17 @@ export function setupGateway(app: Express) {
           try {
             decodedCandidate = decodeURIComponent(decodedCandidate).trim();
           } catch {}
-          if ((/^https?:\/\//i.test(candidate.trim()) && !isSafeTarget(candidate.trim())) ||
-              (/^https?:\/\//i.test(decodedCandidate) && !isSafeTarget(decodedCandidate))) {
+          const trimmedCand = candidate.trim();
+          const isInternalAliasInParam = (u: string) => {
+            try {
+              const p = new URL(u);
+              return isAllowedStudioTargetUrl(p) || isAllowedDemoApiUrl(p);
+            } catch {
+              return false;
+            }
+          };
+          if ((/^https?:\/\//i.test(trimmedCand) && (!isSafeTarget(trimmedCand) || isInternalAliasInParam(trimmedCand))) ||
+              (/^https?:\/\//i.test(decodedCandidate) && (!isSafeTarget(decodedCandidate) || isInternalAliasInParam(decodedCandidate)))) {
             const eventId = uuidv4();
             enqueueSecurityEvent({
               id: eventId,
@@ -616,9 +633,44 @@ export function setupGateway(app: Express) {
         return res.status(503).json({ error: 'Service Unavailable (Fault Injection)' });
       }
 
-      // 6. Proxy with DNS-rebinding-protected agents and strict demo-API port confinement
+      // 6. Proxy with DNS-rebinding-protected agents, strict demo-API port confinement, or FortiX API Studio target dispatch
       const upstreamTimeoutMs = parseInt(process.env.GATEWAY_UPSTREAM_TIMEOUT_MS || '5000', 10);
       const parsedTarget = new URL(route.targetUrl);
+
+      if (isAllowedStudioTargetUrl(parsedTarget)) {
+        const studioApiId = extractStudioApiIdFromTarget(route.targetUrl);
+        if (!studioApiId) {
+          return res.status(502).json({ error: 'Bad Gateway: Invalid Studio target' });
+        }
+        const statusCode = await handleStudioUpstreamRequest(req, res, {
+          route,
+          routeId,
+          requestId,
+          studioApiId,
+        });
+        const durationMs = Number(process.hrtime.bigint() - startHrTime) / 1000000;
+        const logId = uuidv4();
+        enqueueMetric({
+          id: logId,
+          routeId,
+          requestId,
+          experimentId: experimentCorrelationId,
+          latencyMs: Math.round(durationMs),
+          statusCode,
+        });
+        Promise.resolve()
+          .then(() => {
+            broadcast(route.projectId, 'metric:new', {
+              id: logId,
+              routeId,
+              latencyMs: Math.round(durationMs),
+              statusCode,
+            });
+          })
+          .catch((e) => logger.error({ err: e }, '[Gateway] Broadcast studio metric error'));
+        return;
+      }
+
       const isDemoUpstream = isAllowedDemoApiUrl(parsedTarget);
 
       const cleanDemoHost = parsedTarget.hostname.toLowerCase().replace(/\.+$/, '');

@@ -54,7 +54,10 @@ describe('TSK-05: Automated Database Migrations (Drizzle)', () => {
       'webhook_deliveries',
       'project_settings',
       'audit_logs',
-      'workflow_runs'
+      'workflow_runs',
+      'studio_apis',
+      'studio_resources',
+      'studio_records'
     ];
 
     for (const table of requiredTables) {

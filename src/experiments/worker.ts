@@ -146,7 +146,8 @@ async function runInjectionWorkload(params: {
         cancelled = true;
         break;
       }
-      const batchSize = Math.min(concurrency, desiredCount - requestsSent);
+      const batchSize =
+        requestsSent === 0 ? 1 : Math.min(concurrency, desiredCount - requestsSent);
       const batchPromises: Promise<number | null>[] = [];
       for (let b = 0; b < batchSize; b++) {
         requestsSent++;
@@ -162,14 +163,15 @@ async function runInjectionWorkload(params: {
     // then hold the fault window active until deadline (unless cancelled).
     const minTargetProbes = 6;
     const maxProbes = 18;
-    const waveSize = 3;
+    const waveSize = 5;
 
     while (requestsSent < minTargetProbes && Date.now() < deadline) {
       if (await isExperimentCancelled(expId)) {
         cancelled = true;
         break;
       }
-      const batchCount = Math.min(waveSize, minTargetProbes - requestsSent);
+      const batchCount =
+        requestsSent === 0 ? 1 : Math.min(waveSize, minTargetProbes - requestsSent);
       const wavePromises: Promise<number | null>[] = [];
       for (let w = 0; w < batchCount; w++) {
         requestsSent++;

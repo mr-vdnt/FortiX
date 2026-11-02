@@ -191,13 +191,19 @@ export default function APIs() {
               Register authorized upstream endpoints to enforce API-key authentication, WAF rules, and SSRF protection.
             </p>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <Link
-              to="/directory"
+              to="/studio"
               className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-inverted rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity whitespace-nowrap shrink-0"
             >
+              <span>Open API Studio</span>
+            </Link>
+            <Link
+              to="/directory"
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-hover border border-subtle text-strong rounded-lg text-xs font-semibold hover:bg-hover-strong transition whitespace-nowrap shrink-0"
+            >
               <Globe size={15} />
-              <span>Browse 800+ Public APIs</span>
+              <span>Public APIs</span>
             </Link>
             <button
               type="button"
