@@ -405,7 +405,7 @@ async function startServer() {
             console.warn('[Worker] Internal worker startup warning:', err?.message || err);
           });
       }
-    }, 150);
+    }, 800);
     backgroundStartupTimer.unref?.();
   })();
 

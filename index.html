@@ -25,17 +25,19 @@
       })();
       // Gracefully ignore disabled-HMR WebSocket connection events per AI Studio environment constraints
       window.addEventListener('unhandledrejection', function (event) {
-        if (event && event.reason && (
-          String(event.reason.message || event.reason).includes('WebSocket closed without opened') ||
-          String(event.reason.message || event.reason).includes('failed to connect to websocket')
-        )) {
+        var text = event && event.reason ? String(event.reason.message || event.reason) : '';
+        if (
+          text.includes('WebSocket closed without opened') ||
+          text.includes('failed to connect to websocket') ||
+          text.includes('vite-hmr')
+        ) {
           event.preventDefault();
         }
       });
     </script>
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="min-h-screen w-full bg-[#090b10] text-zinc-100 m-0">
+    <div id="root" class="min-h-screen w-full"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
