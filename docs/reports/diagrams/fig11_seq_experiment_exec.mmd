@@ -1,0 +1,7 @@
+sequenceDiagram
+  Operator UI->>Experiments API: POST /api/control/experiments {routeId, type, config}
+  Experiments API->>BullMQ Queue: INSERT experiment (QUEUED) + queue.add('run-experiment')
+  BullMQ Queue->>Experiment Worker: Dequeue job
+  Experiment Worker->>FortiX Gateway: Phase 1 BASELINE: 5 normal probes (status=OBSERVING)
+  Experiment Worker->>FortiX Gateway: Phase 2 INJECTION: Set RUNNING + send workload probes
+  Experiment Worker->>FortiX Gateway: Phase 3 RECOVERY: Clear fault + send 5 recovery probes

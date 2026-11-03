@@ -1,0 +1,6 @@
+sequenceDiagram
+  Operator UI->>Experiments API: POST /api/control/experiments/:id/cancel
+  Experiments API->>PostgreSQL: UPDATE experiments SET status='CANCELLED'
+  Experiments API->>Gateway Cache: invalidateExpCache(routeId)
+  Experiment Worker->>PostgreSQL: Poll isExperimentCancelled(id) -> true
+  Experiment Worker->>PostgreSQL: finally: DELETE temp fx_test_* key & clear RUNNING state

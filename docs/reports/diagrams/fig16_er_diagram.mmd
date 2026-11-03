@@ -1,0 +1,21 @@
+erDiagram
+  users ||--o{ auth_action_tokens : issues
+  users ||--o{ refresh_tokens : maintains
+  users ||--o{ recovery_challenges : verifies
+  users ||--o{ organizations : owns
+  organizations ||--o{ projects : contains
+  projects ||--|| project_settings : configures
+  projects ||--o{ audit_logs : records
+  projects ||--o{ api_keys : scopes
+  projects ||--o{ api_routes : exposes
+  projects ||--o{ webhooks : triggers
+  webhooks ||--o{ webhook_deliveries : logs
+  api_routes ||--o{ security_policies : enforces
+  api_routes ||--o{ experiments : tests
+  api_routes ||--o{ metric_logs : observes
+  api_routes ||--o{ security_events : flags
+  api_routes ||--o{ workflow_runs : orchestrates
+  experiments ||--o{ verifications : proves
+  projects ||--o{ studio_apis : hosts
+  studio_apis ||--o{ studio_resources : defines
+  studio_resources ||--o{ studio_records : stores

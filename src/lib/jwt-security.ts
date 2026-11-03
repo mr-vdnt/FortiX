@@ -13,6 +13,7 @@ const MAX_REVOKED_CACHE_ENTRIES = 5000;
 
 // Bounded in-memory revocation & password-version registries (backed by Redis when available)
 const revokedTokenExpiries = new Map<string, number>();
+const revokedSessionFamilies = new Map<string, number>();
 const rotatedPasswordVersions = new Map<string, string>();
 
 let runtimeProductionSecret: string | null = null;
@@ -55,6 +56,52 @@ function pruneRevokedTokens(): void {
     for (const k of oldest) {
       revokedTokenExpiries.delete(k);
     }
+  }
+  for (const [sid, expSec] of revokedSessionFamilies.entries()) {
+    if (expSec <= nowSec) {
+      revokedSessionFamilies.delete(sid);
+    }
+  }
+}
+
+export async function revokeSessionFamilySid(familyId: string, ttlSeconds = 172800): Promise<void> {
+  if (!familyId || typeof familyId !== 'string') return;
+  const nowSec = Math.floor(Date.now() / 1000);
+  revokedSessionFamilies.set(familyId, nowSec + ttlSeconds);
+  try {
+    await redisConnection.set(`fortix:revoked-sid:${familyId}`, '1', 'EX', Math.max(60, ttlSeconds));
+  } catch {
+    // Local map still enforces revocation if Redis is degraded
+  }
+}
+
+export async function isSessionFamilySidRevoked(familyId?: string): Promise<boolean> {
+  if (!familyId || typeof familyId !== 'string') return false;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const localExp = revokedSessionFamilies.get(familyId);
+  if (localExp !== undefined) {
+    if (localExp > nowSec) return true;
+    revokedSessionFamilies.delete(familyId);
+  }
+  try {
+    const inRedis = await redisConnection.get(`fortix:revoked-sid:${familyId}`);
+    if (inRedis === '1') {
+      revokedSessionFamilies.set(familyId, nowSec + 3600);
+      return true;
+    }
+  } catch {
+    // Fall back to local map
+  }
+  return false;
+}
+
+export function extractSessionFamilyFromJwt(rawToken?: string): string | undefined {
+  if (!rawToken || typeof rawToken !== 'string') return undefined;
+  try {
+    const decoded = jwt.decode(rawToken) as { sid?: string } | null;
+    return typeof decoded?.sid === 'string' && decoded.sid ? decoded.sid : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -180,6 +227,8 @@ export interface VerifiedUserContext {
   email: string;
   role: string;
   emailVerified: boolean;
+  phoneE164: string | null;
+  phoneVerified: boolean;
 }
 
 export async function verifyAndResolveJwtUser(rawToken: string): Promise<VerifiedUserContext | null> {
@@ -189,19 +238,24 @@ export async function verifyAndResolveJwtUser(rawToken: string): Promise<Verifie
     return null;
   }
 
-  let decoded: { id?: string; email?: string; role?: string; pwdVer?: string };
+  let decoded: { id?: string; email?: string; role?: string; pwdVer?: string; sid?: string };
   try {
     decoded = jwt.verify(rawToken, getJwtSecret(), { algorithms: ['HS256'] }) as {
       id?: string;
       email?: string;
       role?: string;
       pwdVer?: string;
+      sid?: string;
     };
   } catch {
     return null;
   }
 
   if (!decoded || typeof decoded.id !== 'string' || !decoded.id) {
+    return null;
+  }
+
+  if (decoded.sid && (await isSessionFamilySidRevoked(decoded.sid))) {
     return null;
   }
 
@@ -239,5 +293,7 @@ export async function verifyAndResolveJwtUser(rawToken: string): Promise<Verifie
     email: user.email,
     role: user.role,
     emailVerified: Boolean(user.emailVerified),
+    phoneE164: user.phoneE164 ?? null,
+    phoneVerified: Boolean(user.phoneVerified),
   };
 }

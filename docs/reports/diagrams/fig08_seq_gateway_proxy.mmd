@@ -1,0 +1,8 @@
+sequenceDiagram
+  API Client->>FortiX Gateway: GET /proxy/:routeId/v1/orders (X-API-Key)
+  FortiX Gateway->>SSRF & WAF Guard: Validate targetUrl + safeDnsLookup + detectThreats
+  SSRF & WAF Guard-->>FortiX Gateway: SAFE (No SQLi/XSS/Private IP)
+  FortiX Gateway->>Upstream API: Forward GET /v1/orders (Strip X-API-Key, Set Timeout)
+  Upstream API-->>FortiX Gateway: 200 OK + JSON Payload
+  FortiX Gateway->>Redis Stream: XADD fortix:telemetry:stream {routeId, latencyMs, 200}
+  FortiX Gateway-->>API Client: 200 OK + X-Request-ID

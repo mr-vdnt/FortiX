@@ -40,7 +40,9 @@ describe('TSK-05: Automated Database Migrations (Drizzle)', () => {
 
     const requiredTables = [
       'users',
+      'auth_action_tokens',
       'refresh_tokens',
+      'recovery_challenges',
       'organizations',
       'projects',
       'api_routes',

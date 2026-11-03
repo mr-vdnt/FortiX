@@ -43,6 +43,13 @@
       "when": 1792700000000,
       "tag": "0005_api_studio",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0006_auth_sessions_and_recovery",
+      "breakpoints": true
     }
   ]
 }

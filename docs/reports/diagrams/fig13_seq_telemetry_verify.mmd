@@ -1,0 +1,9 @@
+sequenceDiagram
+  Experiment Worker->>Verification Engine: verifyPolicy(expId, policyId, windows)
+  Verification Engine->>Telemetry Barrier: flushTelemetryBarrier(timeoutMs: 3000)
+  Telemetry Barrier->>PostgreSQL: Drain Redis Stream + commit pending metric_logs
+  Telemetry Barrier-->>Verification Engine: TelemetrySyncResult {synced: true}
+  Verification Engine->>PostgreSQL: SELECT metric_logs WHERE experiment_id = expId
+  Verification Engine->>Verification Engine: Partition BASELINE / INJECTION / RECOVERY + Evaluate SLA
+  Verification Engine->>PostgreSQL: INSERT verifications {expected, observed, verdict}
+  Verification Engine->>Artifact Store: Persist SHA-256 Compliance PDF Report

@@ -1,0 +1,8 @@
+sequenceDiagram
+  API Client->>Gateway Auth: Request with X-API-Key: fx_live_<id>_<secret>
+  Gateway Auth->>HashedKeyCache: Lookup SHA-256(rawKey)
+  HashedKeyCache-->>Gateway Auth: Cache Miss
+  Gateway Auth->>PostgreSQL: SELECT api_keys WHERE id = <id>
+  Gateway Auth->>Gateway Auth: bcrypt.compare(secret, secret_hash) + check scopes/expiry
+  Gateway Auth->>HashedKeyCache: Store SHA-256(rawKey) (strip secretHash)
+  Redis Pub/Sub->>HashedKeyCache: Event api_key.revoked -> Evict keyId immediately

@@ -4,7 +4,7 @@ import { db } from './db/index.js';
 import { projects, organizations } from './db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import { verifyAndResolveJwtUser, hashJwtToken, extractRequestToken } from './lib/jwt-security.js';
-import { isOriginAllowed } from './lib/cors-csrf.js';
+import { isOriginAllowed, resolveRequestHost } from './lib/cors-csrf.js';
 
 let io: Server | null = null;
 
@@ -76,14 +76,17 @@ export function disconnectSocketsForUser(userId?: string): number {
 
 export function setupWebSockets(server: HttpServer) {
   io = new Server(server, {
+    allowRequest: (req, callback) => {
+      const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
+      const reqHost = resolveRequestHost(req as any);
+      if (isOriginAllowed(origin, reqHost)) {
+        callback(null, true);
+      } else {
+        callback('Origin not allowed by CORS', false);
+      }
+    },
     cors: {
-      origin: (origin, callback) => {
-        if (isOriginAllowed(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Origin not allowed by CORS'));
-        }
-      },
+      origin: true,
       credentials: true,
     },
   });

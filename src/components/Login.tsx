@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import {
-  X,
-  Shield,
   Eye,
   EyeOff,
   Lock,
   Mail,
+  Phone,
   User,
   AlertCircle,
-  CheckCircle2,
   ArrowRight,
   LogOut,
 } from 'lucide-react';
@@ -31,27 +28,19 @@ export function Login({
 }) {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   React.useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [isShaking, setIsShaking] = useState(false);
-
-  // Real 2-step Password Reset state
-  const [isForgotOpen, setIsForgotOpen] = useState(false);
-  const [resetStep, setResetStep] = useState<'request' | 'confirm' | 'done'>('request');
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetTokenInput, setResetTokenInput] = useState('');
-  const [devResetTokenHint, setDevResetTokenHint] = useState('');
-  const [resetNewPassword, setResetNewPassword] = useState('');
-  const [resetError, setResetError] = useState('');
-  const [resetMessage, setResetMessage] = useState('');
-  const [isResetSubmitting, setIsResetSubmitting] = useState(false);
 
   const triggerShake = () => {
     setIsShaking(true);
@@ -67,9 +56,13 @@ export function Login({
     e.preventDefault();
     setError('');
 
-    const normalizedEmail = email.trim();
-    if (!normalizedEmail) {
-      setError('Please enter your email address.');
+    const normalizedIdentifier = identifier.trim();
+    if (!normalizedIdentifier) {
+      setError(
+        mode === 'login'
+          ? 'Please enter your email address or phone number.'
+          : 'Please enter your email address.'
+      );
       triggerShake();
       return;
     }
@@ -88,31 +81,38 @@ export function Login({
           credentials: 'include',
           headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'browser' },
           body: JSON.stringify({
-            email: normalizedEmail,
+            email: normalizedIdentifier,
             password,
             name: name.trim() || undefined,
+            phone: phone.trim() || undefined,
           }),
         });
 
         if (!regRes.ok) {
           const errPayload = await regRes.json().catch(() => ({}));
           if (regRes.status === 409) {
-            setError('An account with this email already exists. Sign in instead.');
+            setError(errPayload.error || 'An account with this email or phone already exists. Sign in instead.');
           } else if (regRes.status === 429) {
             setError(errPayload.error || 'Too many authentication attempts. Please wait a minute and retry.');
           } else {
-            setError(errPayload.error || 'Unable to create account. Check your email and password (min 8 chars).');
+            setError(errPayload.error || 'Unable to create account. Check your details and password (min 8 chars).');
           }
           triggerShake();
           return;
         }
       }
 
+      // IMPORTANT: Never store passwords in localStorage, sessionStorage, or cookies.
+      // Only `rememberMe` boolean is sent so the server issues rotating HttpOnly session/refresh cookies.
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'browser' },
-        body: JSON.stringify({ email: normalizedEmail, password }),
+        body: JSON.stringify({
+          identifier: normalizedIdentifier,
+          password,
+          rememberMe,
+        }),
       });
 
       if (res.ok) {
@@ -124,7 +124,11 @@ export function Login({
         let cookieAccepted = false;
         try {
           const meCheck = await fetch('/api/auth/me', { credentials: 'include' });
-          cookieAccepted = meCheck.ok;
+          const meContentType = meCheck.headers.get('content-type') || '';
+          if (meCheck.ok && meContentType.includes('application/json')) {
+            const meData = await meCheck.json().catch(() => null);
+            cookieAccepted = Boolean(meData?.user?.id);
+          }
         } catch {
           cookieAccepted = false;
         }
@@ -134,7 +138,11 @@ export function Login({
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'iframe-memory' },
-            body: JSON.stringify({ email: normalizedEmail, password }),
+            body: JSON.stringify({
+              identifier: normalizedIdentifier,
+              password,
+              rememberMe: false,
+            }),
           });
           if (fallbackRes.ok) {
             const fallbackData = await fallbackRes.json().catch(() => ({}));
@@ -148,8 +156,10 @@ export function Login({
         const errPayload = await res.json().catch(() => ({}));
         if (res.status === 429) {
           setError(errPayload.error || 'Too many login attempts. Please wait 1 minute before retrying.');
+        } else if (res.status === 400) {
+          setError(errPayload.error || 'Enter a valid email address or E.164 phone number.');
         } else {
-          setError('Invalid email or password. Verify your credentials and try again.');
+          setError('Invalid credentials. Verify your email or verified phone number and password.');
         }
         triggerShake();
       }
@@ -158,87 +168,6 @@ export function Login({
       triggerShake();
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const openForgotModal = () => {
-    setResetEmail(email.trim());
-    setResetTokenInput('');
-    setDevResetTokenHint('');
-    setResetNewPassword('');
-    setResetError('');
-    setResetMessage('');
-    setResetStep('request');
-    setIsForgotOpen(true);
-  };
-
-  const handleRequestResetToken = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!resetEmail.trim()) return;
-    setResetError('');
-    setIsResetSubmitting(true);
-
-    try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setResetError(data.error || 'Unable to request password reset. Try again shortly.');
-        return;
-      }
-
-      setResetMessage(
-        data.message ||
-          'If an account matches that email address, a single-use password reset token has been dispatched.'
-      );
-      if (data.devResetToken) {
-        setDevResetTokenHint(data.devResetToken);
-      }
-      setResetStep('confirm');
-    } catch {
-      setResetError('Network error while requesting password reset.');
-    } finally {
-      setIsResetSubmitting(false);
-    }
-  };
-
-  const handleConfirmPasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setResetError('');
-    if (resetNewPassword.length < 8) {
-      setResetError('New password must be at least 8 characters long.');
-      return;
-    }
-
-    setIsResetSubmitting(true);
-    try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: resetTokenInput.trim(),
-          newPassword: resetNewPassword,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setResetError(data.error || 'Invalid or expired password reset token.');
-        return;
-      }
-
-      setResetMessage(data.message || 'Password updated. You can now sign in with your new password.');
-      setResetStep('done');
-      setEmail(resetEmail.trim());
-      setPassword('');
-    } catch {
-      setResetError('Network error while resetting password.');
-    } finally {
-      setIsResetSubmitting(false);
     }
   };
 
@@ -258,11 +187,11 @@ export function Login({
               FX
             </div>
             <div>
-              <div className="text-lg font-bold tracking-tight text-white leading-none">
-                FortiX Gateway
+              <div className="text-xl font-bold tracking-tight text-white leading-none">
+                FortiX
               </div>
-              <div className="text-xs text-zinc-400 mt-1">
-                API Security Enforcement & Continuous Resilience
+              <div className="text-[11px] font-semibold tracking-wider uppercase text-zinc-400 mt-1">
+                API SECURITY &amp; RESILIENCE PLATFORM
               </div>
             </div>
           </div>
@@ -271,9 +200,9 @@ export function Login({
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
               Protect upstream APIs and verify resilience with stored evidence.
             </h1>
-            <p className="text-sm sm:text-base text-zinc-400 leading-relaxed">
+            <div className="text-sm sm:text-base text-zinc-300 leading-relaxed">
               Manage scoped API keys, per-route rate limits, active WAF threat inspection, and bounded fault-injection experiments from a single control plane.
-            </p>
+            </div>
           </div>
 
           <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
@@ -284,7 +213,7 @@ export function Login({
               </div>
             </div>
             <div>
-              <div className="font-semibold text-zinc-200">WAF & SSRF Guard</div>
+              <div className="font-semibold text-zinc-200">WAF &amp; SSRF Guard</div>
               <div className="text-zinc-400 mt-0.5 leading-relaxed">
                 Per-route SQLi/XSS inspection and private-network blocking.
               </div>
@@ -336,41 +265,17 @@ export function Login({
               </div>
             )}
 
-            {/* Mode Switcher Tabs */}
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#0a0c13] border border-white/10 mb-6">
-              <button
-                type="button"
-                onClick={() => switchMode('login')}
-                className={`py-2 px-4 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-                  mode === 'login'
-                    ? 'bg-[#1c2133] text-white shadow-sm border border-white/15'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => switchMode('register')}
-                className={`py-2 px-4 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
-                  mode === 'register'
-                    ? 'bg-[#1c2133] text-white shadow-sm border border-white/15'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                Create Account
-              </button>
-            </div>
-
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Shield size={18} className="text-primary shrink-0" />
-                <span>{mode === 'login' ? 'Sign in to Control Plane' : 'Create Operator Account'}</span>
+              <div className="text-[11px] font-semibold tracking-wider uppercase text-primary mb-1">
+                FortiX — API SECURITY &amp; RESILIENCE PLATFORM
+              </div>
+              <h2 className="text-2xl font-bold text-white tracking-tight">
+                {mode === 'login' ? 'Welcome back' : 'Create an account'}
               </h2>
               <p className="text-xs text-zinc-400 mt-1">
                 {mode === 'login'
-                  ? 'Authenticate via HttpOnly session cookie to manage gateway routes and resilience runs.'
-                  : 'Provision a least-privileged developer workspace with isolated gateway settings.'}
+                  ? 'Sign in with your email address or verified phone number.'
+                  : 'Provision an isolated operator workspace with gateway security controls.'}
               </p>
             </div>
 
@@ -406,39 +311,52 @@ export function Login({
               )}
 
               <div>
-                <label htmlFor="auth-email" className="block text-xs font-semibold text-zinc-200 mb-1.5">
-                  Email Address
+                <label htmlFor="auth-identifier" className="block text-xs font-semibold text-zinc-200 mb-1.5">
+                  {mode === 'login' ? 'Email address or phone number' : 'Email address'}
                 </label>
                 <div className="relative">
                   <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
                   <input
-                    id="auth-email"
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="operator@company.com"
+                    id="auth-identifier"
+                    type={mode === 'login' ? 'text' : 'email'}
+                    autoComplete={mode === 'login' ? 'username' : 'email'}
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder={
+                      mode === 'login'
+                        ? 'Enter your email or phone number'
+                        : 'Enter your email address'
+                    }
                     required
                     className="w-full rounded-xl bg-[#0a0c13] border border-white/20 pl-10 pr-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition-colors"
                   />
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label htmlFor="auth-password" className="block text-xs font-semibold text-zinc-200">
-                    Password
+              {mode === 'register' && (
+                <div>
+                  <label htmlFor="auth-phone" className="block text-xs font-semibold text-zinc-200 mb-1.5">
+                    Phone number <span className="text-zinc-500 font-normal">(optional, E.164)</span>
                   </label>
-                  {mode === 'login' && (
-                    <button
-                      type="button"
-                      onClick={openForgotModal}
-                      className="text-xs text-zinc-400 hover:text-primary transition-colors"
-                    >
-                      Forgot password?
-                    </button>
-                  )}
+                  <div className="relative">
+                    <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                    <input
+                      id="auth-phone"
+                      type="tel"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+919876543210"
+                      className="w-full rounded-xl bg-[#0a0c13] border border-white/20 pl-10 pr-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition-colors"
+                    />
+                  </div>
                 </div>
+              )}
+
+              <div>
+                <label htmlFor="auth-password" className="block text-xs font-semibold text-zinc-200 mb-1.5">
+                  Password
+                </label>
                 <div className="relative">
                   <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
                   <input
@@ -463,6 +381,27 @@ export function Login({
                 </div>
               </div>
 
+              {mode === 'login' && (
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <label className="inline-flex items-center gap-2 text-xs text-zinc-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-white/25 bg-[#0a0c13] text-primary focus:ring-primary/30"
+                    />
+                    <span>Remember me</span>
+                  </label>
+
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-medium text-zinc-300 hover:text-primary transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -472,25 +411,25 @@ export function Login({
                   {isSubmitting
                     ? mode === 'login'
                       ? 'Signing in...'
-                      : 'Creating workspace...'
+                      : 'Creating account...'
                     : mode === 'login'
-                      ? 'Sign In to FortiX'
-                      : 'Create Account & Sign In'}
+                      ? 'Sign in'
+                      : 'Create an account'}
                 </span>
                 {!isSubmitting && <ArrowRight size={15} />}
               </button>
             </form>
 
-            <div className="mt-4 text-center text-xs text-zinc-400">
+            <div className="mt-5 text-center text-xs text-zinc-400">
               {mode === 'login' ? (
                 <>
-                  First time using FortiX?{' '}
+                  Don&apos;t have an account?{' '}
                   <button
                     type="button"
                     onClick={() => switchMode('register')}
                     className="text-primary hover:underline font-semibold"
                   >
-                    Create an operator account
+                    Create an account
                   </button>
                 </>
               ) : (
@@ -507,8 +446,8 @@ export function Login({
               )}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-zinc-400">
-              <span>Protected by HttpOnly cookie &amp; CSRF guard</span>
+            <div className="mt-5 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-zinc-400">
+              <span>Protected by rotating HttpOnly session &amp; CSRF guard</span>
               <div className="flex items-center gap-3">
                 <Link to="/privacy" className="hover:text-zinc-200 transition-colors">
                   Privacy
@@ -521,185 +460,6 @@ export function Login({
           </div>
         </div>
       </div>
-
-      {/* Real 2-Step Password Recovery Modal */}
-      {isForgotOpen &&
-        typeof document !== 'undefined' &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md"
-            onClick={() => setIsForgotOpen(false)}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Reset Password"
-          >
-            <div
-              className="w-full max-w-md rounded-2xl bg-[#141722] border border-white/15 p-6 shadow-2xl text-zinc-100 relative"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-bold text-white">Password Recovery</h3>
-                <button
-                  type="button"
-                  onClick={() => setIsForgotOpen(false)}
-                  aria-label="Close modal"
-                  className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {resetError && (
-                <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-500/12 border border-red-500/35 px-3 py-2.5 text-xs text-red-300">
-                  <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
-                  <span>{resetError}</span>
-                </div>
-              )}
-
-              {resetStep === 'request' && (
-                <form onSubmit={handleRequestResetToken} className="space-y-4">
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    Enter your registered operator email to generate a single-use, 15-minute password reset token.
-                  </p>
-                  <div>
-                    <label htmlFor="reset-email-input" className="block text-xs font-semibold text-zinc-200 mb-1.5">
-                      Account Email
-                    </label>
-                    <input
-                      id="reset-email-input"
-                      type="email"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      placeholder="operator@company.com"
-                      required
-                      autoFocus
-                      className="w-full rounded-xl bg-[#0a0c13] border border-white/20 px-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-primary"
-                    />
-                  </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setResetStep('confirm')}
-                      className="text-xs text-zinc-400 hover:text-primary transition-colors"
-                    >
-                      Already have a reset token?
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsForgotOpen(false)}
-                        className="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={isResetSubmitting}
-                        className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-60 text-zinc-950 font-semibold text-xs transition-colors whitespace-nowrap"
-                      >
-                        {isResetSubmitting ? 'Requesting...' : 'Request Reset Token'}
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              )}
-
-              {resetStep === 'confirm' && (
-                <form onSubmit={handleConfirmPasswordReset} className="space-y-4">
-                  {resetMessage && (
-                    <div className="flex items-start gap-2.5 text-xs text-emerald-300 bg-emerald-500/12 border border-emerald-500/30 p-3 rounded-xl leading-relaxed">
-                      <CheckCircle2 size={15} className="text-emerald-400 shrink-0 mt-0.5" />
-                      <span>{resetMessage}</span>
-                    </div>
-                  )}
-
-                  {devResetTokenHint && (
-                    <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 space-y-2 text-xs">
-                      <div className="font-semibold text-amber-300">
-                        Local Dev Mail Outbox (non-production only)
-                      </div>
-                      <div className="font-mono text-[11px] text-zinc-300 break-all">{devResetTokenHint}</div>
-                      <button
-                        type="button"
-                        onClick={() => setResetTokenInput(devResetTokenHint)}
-                        className="px-2.5 py-1 rounded-lg bg-[#0a0c13] border border-white/15 text-amber-300 hover:text-white text-[11px] font-medium"
-                      >
-                        Copy Token Into Field
-                      </button>
-                    </div>
-                  )}
-
-                  <div>
-                    <label htmlFor="reset-token-input" className="block text-xs font-semibold text-zinc-200 mb-1.5">
-                      Single-Use Reset Token
-                    </label>
-                    <input
-                      id="reset-token-input"
-                      type="text"
-                      value={resetTokenInput}
-                      onChange={(e) => setResetTokenInput(e.target.value)}
-                      placeholder="64-character hex reset token"
-                      required
-                      className="w-full rounded-xl bg-[#0a0c13] border border-white/20 px-3.5 py-2.5 text-xs font-mono text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="reset-new-password" className="block text-xs font-semibold text-zinc-200 mb-1.5">
-                      New Password (min 8 characters)
-                    </label>
-                    <input
-                      id="reset-new-password"
-                      type="password"
-                      value={resetNewPassword}
-                      onChange={(e) => setResetNewPassword(e.target.value)}
-                      placeholder="Minimum 8 characters"
-                      minLength={8}
-                      required
-                      className="w-full rounded-xl bg-[#0a0c13] border border-white/20 px-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setResetStep('request')}
-                      className="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isResetSubmitting}
-                      className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover disabled:opacity-60 text-zinc-950 font-semibold text-xs transition-colors whitespace-nowrap"
-                    >
-                      {isResetSubmitting ? 'Updating Password...' : 'Reset Password'}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {resetStep === 'done' && (
-                <div className="space-y-4">
-                  <div className="flex items-start gap-2.5 text-xs text-emerald-300 bg-emerald-500/12 border border-emerald-500/30 p-3.5 rounded-xl leading-relaxed">
-                    <CheckCircle2 size={16} className="text-emerald-400 shrink-0 mt-0.5" />
-                    <span>{resetMessage}</span>
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setIsForgotOpen(false)}
-                      className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-zinc-950 font-semibold text-xs transition-colors"
-                    >
-                      Return to Sign In
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>,
-          document.body
-        )}
     </div>
   );
 }

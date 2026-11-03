@@ -1,0 +1,10 @@
+flowchart LR
+  VIS["Actor: Unauthenticated User"] --> UC1(["Register / Sign In (Remember Me)"])
+  VIS --> UC2(["Recover Password via 6-Digit OTP"])
+  DEV["Actor: API Operator (DEVELOPER)"] --> UC3(["Create API Studio Store API (100 Products)"])
+  DEV --> UC4(["Configure Route, Scoped API Key & Policy"])
+  DEV --> UC5(["Execute Chaos / Rate-Limit Experiment"])
+  DEV --> UC6(["Inspect Verification Verdict & Export PDF"])
+  DEV --> UC7(["Manage Active Sessions & Verify Phone"])
+  ADM["Actor: Platform Admin (ADMIN)"] --> UC8(["Manage User Roles & Replay DLQ Jobs"])
+  CLI["Actor: External API Consumer"] --> UC9(["Invoke Protected Gateway Endpoint"])

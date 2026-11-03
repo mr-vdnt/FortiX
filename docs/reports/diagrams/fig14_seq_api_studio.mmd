@@ -1,0 +1,8 @@
+sequenceDiagram
+  Operator UI->>Studio Control API: POST /api/control/studio/apis (template: products_100)
+  Studio Control API->>PostgreSQL: Transaction: INSERT api_routes, security_policies, studio_apis, 100 studio_records, api_keys
+  Studio Control API-->>Operator UI: 201 Created {routeId, rawApiKey, totalRecords: 100}
+  Operator UI->>FortiX Gateway: GET /proxy/:routeId/api/store/products (X-API-Key)
+  FortiX Gateway->>Studio Target Handler: Enforce Auth/WAF/RateLimit -> handleStudioUpstreamRequest()
+  Studio Target Handler->>PostgreSQL: Query paginated studio_records (project-isolated)
+  FortiX Gateway-->>Operator UI: 200 OK {items: [prod_0001..], pagination}

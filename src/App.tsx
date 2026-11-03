@@ -2,12 +2,14 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { Login } from './components/Login.js';
+import { PasswordRecoveryPage } from './pages/PasswordRecovery.js';
 import { PrivacyPolicyPage, TermsOfUsePage } from './pages/LegalPages.js';
 import {
   getCsrfToken,
   setCsrfToken,
   getMemorySessionToken,
   setMemorySessionToken,
+  attemptSilentSessionRefresh,
   safeStorageGet,
   safeStorageSet,
   safeStorageRemove,
@@ -21,6 +23,8 @@ export interface CurrentOperatorUser {
   email: string;
   role: string;
   emailVerified: boolean;
+  phoneE164?: string | null;
+  phoneVerified?: boolean;
 }
 
 export interface HealthAndStorageState {
@@ -101,28 +105,45 @@ export default function App() {
 
   const loadAuthenticatedUser = React.useCallback(async (): Promise<boolean> => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     try {
-      const memToken = getMemorySessionToken();
-      const res = await fetch('/api/auth/me', {
-        credentials: 'include',
-        headers: memToken ? { Authorization: `Bearer ${memToken}` } : undefined,
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.csrfToken) setCsrfToken(data.csrfToken);
-        if (data.user) {
+      const fetchMe = async () => {
+        const memToken = getMemorySessionToken();
+        return fetch('/api/auth/me', {
+          credentials: 'include',
+          headers: memToken ? { Authorization: `Bearer ${memToken}` } : undefined,
+          signal: controller.signal,
+        });
+      };
+
+      let res = await fetchMe();
+
+      // If short-lived access cookie expired while a Remember-Me rotating refresh cookie is active, silently rotate once
+      if (res.status === 401 && !getMemorySessionToken()) {
+        const refreshed = await attemptSilentSessionRefresh();
+        if (refreshed) {
+          res = await fetchMe();
+        }
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json().catch(() => null);
+        if (data && typeof data.user?.id === 'string' && typeof data.user?.email === 'string') {
+          if (data.csrfToken) setCsrfToken(data.csrfToken);
           setCurrentUser({
             id: data.user.id,
             email: data.user.email,
             role: data.user.role,
             emailVerified: Boolean(data.user.emailVerified),
+            phoneE164: data.user.phoneE164 ?? null,
+            phoneVerified: Boolean(data.user.phoneVerified),
           });
+          setIsAuthenticated(true);
+          return true;
         }
-        setIsAuthenticated(true);
-        return true;
       }
+
       setMemorySessionToken(null);
       setCurrentUser(null);
       setIsAuthenticated(false);
@@ -253,6 +274,26 @@ export default function App() {
               activeUser={isAuthenticated ? currentUser : null}
               onLogin={loadAuthenticatedUser}
               onLogout={handleLogout}
+            />
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={<PasswordRecoveryPage step="forgot" />}
+        />
+        <Route
+          path="/verify-reset"
+          element={<PasswordRecoveryPage step="verify" />}
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <PasswordRecoveryPage
+              step="reset"
+              onSessionsRevoked={() => {
+                setCurrentUser(null);
+                setIsAuthenticated(false);
+              }}
             />
           }
         />

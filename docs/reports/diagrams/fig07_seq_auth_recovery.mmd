@@ -1,0 +1,15 @@
+sequenceDiagram
+  Browser SPA->>Auth Router: POST /api/auth/login {identifier, password, rememberMe:true}
+  Auth Router->>PostgreSQL: SELECT user + bcrypt.compare()
+  Auth Router->>Session / OTP Svc: createRefreshSession(rememberMe:true)
+  Session / OTP Svc->>PostgreSQL: INSERT refresh_tokens (family_id, SHA-256)
+  Auth Router-->>Browser SPA: 200 + Set-Cookie fortix_session, fortix_refresh, fortix_csrf
+  Browser SPA->>Auth Router: POST /api/auth/forgot-password {identifier}
+  Auth Router->>Session / OTP Svc: requestPasswordRecoveryOtp()
+  Session / OTP Svc->>PostgreSQL: INSERT recovery_challenges (otp_hmac)
+  Session / OTP Svc->>Mail/SMS Outbox: Deliver 6-digit OTP (verify 2xx)
+  Browser SPA->>Auth Router: POST /api/auth/verify-reset-otp {challengeId, otp}
+  Session / OTP Svc->>PostgreSQL: Atomic UPDATE consumed_at + INSERT RESET_AUTHORIZATION
+  Auth Router-->>Browser SPA: 200 {resetAuthorization}
+  Browser SPA->>Auth Router: POST /api/auth/reset-password {resetAuthorization, newPassword, confirmPassword}
+  Auth Router->>PostgreSQL: Consume token + UPDATE password_hash + Revoke all refresh_tokens

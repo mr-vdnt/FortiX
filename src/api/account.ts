@@ -22,6 +22,10 @@ import {
 import { disconnectSocketsForUser } from '../socket.js';
 import { invalidateApiKeyCache } from '../gateway/index.js';
 import { publishKeyRevocation } from '../lib/key-invalidation.js';
+import { revokeAllUserRefreshSessions, createRefreshSession } from '../auth/sessions.js';
+import { invalidateUserActionTokens } from '../lib/auth-tokens.js';
+import { invalidateUserRecoveryChallenges } from '../auth/recovery.js';
+import { issueRefreshCookie } from '../lib/cors-csrf.js';
 
 const router = express.Router();
 
@@ -32,6 +36,8 @@ router.get('/me', async (req: AuthRequest, res) => {
       .select({
         id: users.id,
         email: users.email,
+        phoneE164: users.phoneE164,
+        phoneVerified: users.phoneVerified,
         role: users.role,
         emailVerified: users.emailVerified,
         createdAt: users.createdAt,
@@ -77,8 +83,20 @@ router.post('/password', async (req: AuthRequest, res) => {
     const newHash = await bcrypt.hash(newPassword, 10);
     await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, userId));
 
-    await recordPasswordRotation(userId, newHash);
+    await Promise.all([
+      recordPasswordRotation(userId, newHash),
+      revokeAllUserRefreshSessions(userId),
+      invalidateUserActionTokens(userId),
+      invalidateUserRecoveryChallenges(userId, undefined, 'PASSWORD_CHANGED'),
+    ]);
     disconnectSocketsForUser(userId);
+
+    const freshRefresh = await createRefreshSession({
+      userId: user.id,
+      rememberMe: false,
+      userAgent: typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : undefined,
+      ip: req.ip,
+    });
 
     const freshToken = jwt.sign(
       {
@@ -86,14 +104,18 @@ router.post('/password', async (req: AuthRequest, res) => {
         email: user.email,
         role: user.role,
         pwdVer: computePasswordVersion(newHash),
+        sid: freshRefresh.familyId,
         jti: uuidv4(),
       },
       getJwtSecret(),
       { expiresIn: '1d', algorithm: 'HS256' }
     );
 
-    issueSessionCookie(req, res, freshToken);
-    const csrfToken = issueCsrfCookie(req, res);
+    issueSessionCookie(req, res, freshToken, 24 * 60 * 60 * 1000, { persistent: false });
+    issueRefreshCookie(req, res, freshRefresh.rawRefreshToken, freshRefresh.maxAgeMs, {
+      persistent: false,
+    });
+    const csrfToken = issueCsrfCookie(req, res, freshRefresh.maxAgeMs, { persistent: false });
 
     res.json({ success: true, token: freshToken, csrfToken });
   } catch (error) {
@@ -121,12 +143,17 @@ router.delete('/', async (req: AuthRequest, res) => {
       return res.status(401).json({ error: 'Invalid password confirmation' });
     }
 
-    // 1. Immediately revoke active session token & close authenticated sockets
+    // 1. Immediately revoke active session token, refresh families & close authenticated sockets
     const activeToken = extractRequestToken(req);
     if (activeToken) {
       await revokeJwtToken(activeToken);
     }
-    await recordPasswordRotation(userId, `deleted:${Date.now()}`);
+    await Promise.all([
+      recordPasswordRotation(userId, `deleted:${Date.now()}`),
+      revokeAllUserRefreshSessions(userId),
+      invalidateUserActionTokens(userId),
+      invalidateUserRecoveryChallenges(userId, undefined, 'ACCOUNT_DELETED'),
+    ]);
     disconnectSocketsForUser(userId);
 
     // 2. Evict and broadcast revocation for all gateway API keys across owned projects

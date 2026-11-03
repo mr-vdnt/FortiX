@@ -53,7 +53,31 @@ export default function Settings() {
   const projectId = getActiveProjectId() || '';
 
   // Data states
-  const [user, setUser] = useState<{ email: string; role: string; emailVerified?: boolean; createdAt: string } | null>(null);
+  const [user, setUser] = useState<{
+    email: string;
+    phoneE164?: string | null;
+    phoneVerified?: boolean;
+    role: string;
+    emailVerified?: boolean;
+    createdAt: string;
+  } | null>(null);
+  const [activeSessions, setActiveSessions] = useState<
+    Array<{
+      familyId: string;
+      rememberMe: boolean;
+      createdAt: string;
+      lastUsedAt: string | null;
+      expiresAt: string;
+      isCurrent: boolean;
+    }>
+  >([]);
+  const [revokingSessionId, setRevokingSessionId] = useState<string | null>(null);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneChallengeId, setPhoneChallengeId] = useState('');
+  const [phoneOtpInput, setPhoneOtpInput] = useState('');
+  const [devPhoneOtpHint, setDevPhoneOtpHint] = useState('');
+  const [phoneMsg, setPhoneMsg] = useState<{ type: string; text: string }>({ type: '', text: '' });
+  const [submittingPhone, setSubmittingPhone] = useState(false);
   const [project, setProject] = useState<{ id: string; name: string; createdAt: string } | null>(null);
   const [keyStats, setKeyStats] = useState({ active: 0, revoked: 0 });
   
@@ -130,8 +154,9 @@ export default function Settings() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [userRes, projectsRes, keysRes, settingsRes, auditRes, healthRes, testRes, errorsRes, analyticsRes] = await Promise.all([
+      const [userRes, sessionsRes, projectsRes, keysRes, settingsRes, auditRes, healthRes, testRes, errorsRes, analyticsRes] = await Promise.all([
         fetchWithAuth('/api/control/account/me'),
+        fetchWithAuth('/api/auth/sessions'),
         fetchWithAuth('/api/control/projects'),
         fetchWithAuth(`/api/control/keys?projectId=${projectId}`),
         fetchWithAuth(`/api/control/settings?projectId=${projectId}`),
@@ -145,6 +170,15 @@ export default function Settings() {
       if (userRes.ok) {
         const u = await userRes.json();
         setUser(u);
+        if (u?.phoneE164) {
+          setPhoneInput(u.phoneE164);
+        }
+      }
+      if (sessionsRes.ok) {
+        const sData = await sessionsRes.json().catch(() => ({}));
+        if (Array.isArray(sData.sessions)) {
+          setActiveSessions(sData.sessions);
+        }
       }
       if (projectsRes.ok) {
         const projs = await projectsRes.json();
@@ -343,6 +377,85 @@ export default function Settings() {
       setVerificationMsg({ type: 'error', text: 'Network error while verifying email.' });
     } finally {
       setVerifyingEmail(false);
+    }
+  };
+
+  const handleRequestPhoneVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneInput.trim()) return;
+    setSubmittingPhone(true);
+    setPhoneMsg({ type: '', text: '' });
+    try {
+      const res = await fetchWithAuth('/api/auth/phone/request-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phoneInput.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setPhoneChallengeId(data.challengeId || '');
+        setDevPhoneOtpHint(data.devOtpCode || '');
+        setPhoneMsg({ type: 'success', text: data.message || 'Verification code sent.' });
+      } else {
+        setPhoneMsg({ type: 'error', text: data.error || 'Unable to send phone verification code.' });
+      }
+    } catch {
+      setPhoneMsg({ type: 'error', text: 'Network error while requesting phone verification.' });
+    } finally {
+      setSubmittingPhone(false);
+    }
+  };
+
+  const handleConfirmPhoneVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneChallengeId || !phoneOtpInput.trim()) return;
+    setSubmittingPhone(true);
+    setPhoneMsg({ type: '', text: '' });
+    try {
+      const res = await fetchWithAuth('/api/auth/phone/confirm-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: phoneChallengeId, otp: phoneOtpInput.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUser((prev) =>
+          prev ? { ...prev, phoneE164: data.phoneE164, phoneVerified: true } : prev
+        );
+        setPhoneChallengeId('');
+        setPhoneOtpInput('');
+        setDevPhoneOtpHint('');
+        setPhoneMsg({ type: 'success', text: 'Phone number verified for sign-in and SMS recovery.' });
+      } else {
+        setPhoneMsg({ type: 'error', text: data.error || 'Invalid or expired phone verification code.' });
+      }
+    } catch {
+      setPhoneMsg({ type: 'error', text: 'Network error while confirming phone verification.' });
+    } finally {
+      setSubmittingPhone(false);
+    }
+  };
+
+  const handleRevokeSession = async (familyId: string) => {
+    setRevokingSessionId(familyId);
+    try {
+      const res = await fetchWithAuth(`/api/auth/sessions/${encodeURIComponent(familyId)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (data.revokedCurrentSession) {
+          setCsrfToken(null);
+          clearActiveProjectId();
+          window.dispatchEvent(new CustomEvent('fortix:auth-unauthorized'));
+          return;
+        }
+        setActiveSessions((prev) => prev.filter((s) => s.familyId !== familyId));
+      }
+    } catch {
+      // Ignore transient error
+    } finally {
+      setRevokingSessionId(null);
     }
   };
 
@@ -619,6 +732,143 @@ export default function Settings() {
                         Verify Email
                       </button>
                     </form>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t border-subtle space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-strong uppercase tracking-wider">
+                        Phone Number &amp; SMS Recovery ({user?.phoneVerified ? 'Verified' : 'Unverified'})
+                      </div>
+                      <p className="text-xs text-muted">
+                        Enroll and verify an E.164 phone number to enable phone sign-in and SMS OTP account recovery.
+                      </p>
+                    </div>
+                    {user?.phoneE164 && user?.phoneVerified && (
+                      <span className="px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">
+                        {user.phoneE164}
+                      </span>
+                    )}
+                  </div>
+
+                  {phoneMsg.text && (
+                    <div
+                      className={`p-3 rounded-lg text-xs ${
+                        phoneMsg.type === 'success'
+                          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                          : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
+                      }`}
+                    >
+                      {phoneMsg.text}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleRequestPhoneVerify} className="flex flex-wrap gap-2 max-w-lg">
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="+919876543210"
+                      className="flex-1 min-w-[200px] bg-base border border-subtle rounded-lg px-3 py-2 text-xs font-mono text-strong"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submittingPhone || !phoneInput.trim()}
+                      className="px-4 py-2 bg-base hover:bg-hover border border-subtle rounded-lg text-xs font-semibold text-strong transition disabled:opacity-50"
+                    >
+                      {submittingPhone ? 'Sending...' : 'Send SMS OTP'}
+                    </button>
+                  </form>
+
+                  {devPhoneOtpHint && (
+                    <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
+                      <div className="font-semibold text-amber-400">Local Dev SMS Outbox (non-production)</div>
+                      <div className="font-mono text-sm text-strong tracking-widest">{devPhoneOtpHint}</div>
+                      <button
+                        type="button"
+                        onClick={() => setPhoneOtpInput(devPhoneOtpHint)}
+                        className="text-[11px] font-semibold text-primary hover:underline"
+                      >
+                        Use code
+                      </button>
+                    </div>
+                  )}
+
+                  {phoneChallengeId && (
+                    <form onSubmit={handleConfirmPhoneVerify} className="flex flex-wrap gap-2 max-w-lg">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={phoneOtpInput}
+                        onChange={(e) => setPhoneOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="6-digit SMS code"
+                        className="w-40 bg-base border border-subtle rounded-lg px-3 py-2 text-xs font-mono tracking-widest text-strong"
+                      />
+                      <button
+                        type="submit"
+                        disabled={submittingPhone || phoneOtpInput.length !== 6}
+                        className="px-4 py-2 bg-primary text-inverted rounded-lg text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                      >
+                        Verify Phone
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </section>
+
+              <section className="bg-surface border border-subtle rounded-xl p-6 space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-strong">Active Sessions</h3>
+                    <p className="text-xs text-muted">
+                      Rotating refresh-token session families. Revoke any remembered or concurrent device session immediately.
+                    </p>
+                  </div>
+                </div>
+                {activeSessions.length === 0 ? (
+                  <p className="text-xs text-muted">No persistent refresh sessions recorded.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {activeSessions.map((sess) => (
+                      <div
+                        key={sess.familyId}
+                        className="flex flex-wrap items-center justify-between gap-3 p-3 bg-base border border-subtle rounded-lg text-xs"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-semibold text-strong">
+                              Session {sess.familyId.slice(0, 8)}
+                            </span>
+                            {sess.isCurrent && (
+                              <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold uppercase">
+                                Current
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded bg-surface border border-subtle text-muted text-[10px] uppercase">
+                              {sess.rememberMe ? 'Remembered (30d)' : 'Short Session'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-muted">
+                            Started {new Date(sess.createdAt).toLocaleString()} &middot; Expires{' '}
+                            {new Date(sess.expiresAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleRevokeSession(sess.familyId)}
+                          disabled={revokingSessionId === sess.familyId}
+                          className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500 hover:text-white font-semibold transition disabled:opacity-50"
+                        >
+                          {revokingSessionId === sess.familyId
+                            ? 'Revoking...'
+                            : sess.isCurrent
+                              ? 'Revoke & Sign Out'
+                              : 'Revoke'}
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </section>

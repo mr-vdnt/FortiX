@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
 
 export const SESSION_COOKIE_NAME = 'fortix_session';
+export const REFRESH_COOKIE_NAME = 'fortix_refresh';
 export const LEGACY_SESSION_COOKIE_NAME = 'fortix_token';
 export const CSRF_COOKIE_NAME = 'fortix_csrf';
 export const CSRF_HEADER_NAME = 'x-csrf-token';
@@ -26,12 +27,30 @@ export function parseRawCookies(cookieHeader?: string | string[]): Record<string
   return result;
 }
 
-export function getCookieValue(req: Pick<Request, 'headers'> & { cookies?: Record<string, string> }, name: string): string | undefined {
+export function getCookieValue(
+  req: Pick<Request, 'headers'> & { cookies?: Record<string, string> },
+  name: string
+): string | undefined {
   if (req.cookies && typeof req.cookies[name] === 'string' && req.cookies[name].length > 0) {
     return req.cookies[name];
   }
   const parsed = parseRawCookies(req.headers?.cookie);
   return parsed[name] || undefined;
+}
+
+function normalizeHostPort(hostValue: string): string {
+  return hostValue
+    .trim()
+    .toLowerCase()
+    .replace(/:(80|443)$/, '');
+}
+
+export function resolveRequestHost(req?: Pick<Request, 'headers'>): string | undefined {
+  if (!req?.headers) return undefined;
+  const xfHost = req.headers['x-forwarded-host'];
+  const hostHeader = (Array.isArray(xfHost) ? xfHost[0] : xfHost) || req.headers.host;
+  if (!hostHeader || typeof hostHeader !== 'string') return undefined;
+  return normalizeHostPort(hostHeader.split(',')[0]);
 }
 
 export function isHttpsRequest(req: Request): boolean {
@@ -41,6 +60,22 @@ export function isHttpsRequest(req: Request): boolean {
   if (typeof proto === 'string' && proto.split(',')[0].trim().toLowerCase() === 'https') {
     return true;
   }
+
+  // Handle reverse-proxy hops (e.g., Cloud Run / AI Studio internal Nginx) that forward internal HTTP
+  // while the external browser origin/host is served over HTTPS.
+  const origin = typeof req.headers.origin === 'string' ? req.headers.origin.toLowerCase() : '';
+  if (origin.startsWith('https://')) {
+    return true;
+  }
+  const referer = typeof req.headers.referer === 'string' ? req.headers.referer.toLowerCase() : '';
+  if (referer.startsWith('https://')) {
+    return true;
+  }
+  const reqHost = resolveRequestHost(req);
+  if (reqHost && (reqHost.endsWith('.run.app') || reqHost.endsWith('.onrender.com'))) {
+    return true;
+  }
+
   return false;
 }
 
@@ -52,7 +87,7 @@ export function resolveCookieSameSite(isHttps: boolean): 'strict' | 'lax' | 'non
   if (configured === 'none') {
     return isHttps ? 'none' : 'lax';
   }
-  // Over HTTPS, SameSite=None; Secure works in both top-level tabs and cross-site preview iframes
+  // Over HTTPS, SameSite=None; Secure; Partitioned works in both top-level tabs and cross-site preview iframes
   // while strict CORS + Double-Submit CSRF + Origin validation protect state-changing operations.
   return isHttps ? 'none' : 'lax';
 }
@@ -76,21 +111,53 @@ function markCookiePartitionedIfHttpsCrossSite(
   res.setHeader('Set-Cookie', updated);
 }
 
-export function issueSessionCookie(req: Request, res: Response, jwtToken: string, maxAgeMs = 24 * 60 * 60 * 1000): void {
+export function issueSessionCookie(
+  req: Request,
+  res: Response,
+  jwtToken: string,
+  maxAgeMs = 24 * 60 * 60 * 1000,
+  options?: { persistent?: boolean }
+): void {
   const isHttps = isHttpsRequest(req);
   const sameSite = resolveCookieSameSite(isHttps);
+  const persistent = options?.persistent ?? true;
 
   res.cookie(SESSION_COOKIE_NAME, jwtToken, {
     httpOnly: true,
     secure: isHttps,
     sameSite,
     path: '/',
-    maxAge: maxAgeMs,
+    ...(persistent ? { maxAge: maxAgeMs } : {}),
   });
   markCookiePartitionedIfHttpsCrossSite(res, SESSION_COOKIE_NAME, isHttps, sameSite);
 }
 
-export function issueCsrfCookie(req: Request, res: Response, maxAgeMs = 24 * 60 * 60 * 1000): string {
+export function issueRefreshCookie(
+  req: Request,
+  res: Response,
+  rawRefreshToken: string,
+  maxAgeMs: number,
+  options: { persistent: boolean }
+): void {
+  const isHttps = isHttpsRequest(req);
+  const sameSite = resolveCookieSameSite(isHttps);
+
+  res.cookie(REFRESH_COOKIE_NAME, rawRefreshToken, {
+    httpOnly: true,
+    secure: isHttps,
+    sameSite,
+    path: '/api/auth',
+    ...(options.persistent ? { maxAge: maxAgeMs } : {}),
+  });
+  markCookiePartitionedIfHttpsCrossSite(res, REFRESH_COOKIE_NAME, isHttps, sameSite);
+}
+
+export function issueCsrfCookie(
+  req: Request,
+  res: Response,
+  maxAgeMs = 24 * 60 * 60 * 1000,
+  options?: { persistent?: boolean }
+): string {
   const existing = getCookieValue(req as any, CSRF_COOKIE_NAME);
   const csrfToken =
     existing && /^[a-f0-9]{64}$/i.test(existing)
@@ -99,13 +166,14 @@ export function issueCsrfCookie(req: Request, res: Response, maxAgeMs = 24 * 60 
 
   const isHttps = isHttpsRequest(req);
   const sameSite = resolveCookieSameSite(isHttps);
+  const persistent = options?.persistent ?? true;
 
   res.cookie(CSRF_COOKIE_NAME, csrfToken, {
     httpOnly: false,
     secure: isHttps,
     sameSite,
     path: '/',
-    maxAge: maxAgeMs,
+    ...(persistent ? { maxAge: maxAgeMs } : {}),
   });
   markCookiePartitionedIfHttpsCrossSite(res, CSRF_COOKIE_NAME, isHttps, sameSite);
 
@@ -123,6 +191,9 @@ export function clearSessionCookies(req: Request, res: Response): void {
 
   res.clearCookie(SESSION_COOKIE_NAME, { ...opts, httpOnly: true });
   markCookiePartitionedIfHttpsCrossSite(res, SESSION_COOKIE_NAME, isHttps, sameSite);
+  res.clearCookie(REFRESH_COOKIE_NAME, { secure: isHttps, sameSite, path: '/api/auth', httpOnly: true });
+  markCookiePartitionedIfHttpsCrossSite(res, REFRESH_COOKIE_NAME, isHttps, sameSite);
+  res.clearCookie(REFRESH_COOKIE_NAME, { ...opts, httpOnly: true });
   res.clearCookie(LEGACY_SESSION_COOKIE_NAME, { ...opts, httpOnly: true });
   res.clearCookie(LEGACY_SESSION_COOKIE_NAME, { path: '/' });
   res.clearCookie(CSRF_COOKIE_NAME, { ...opts, httpOnly: false });
@@ -156,14 +227,6 @@ export function getConfiguredAllowedOrigins(): Set<string> {
   return allowed;
 }
 
-export function resolveRequestHost(req?: Pick<Request, 'headers'>): string | undefined {
-  if (!req?.headers) return undefined;
-  const xfHost = req.headers['x-forwarded-host'];
-  const hostHeader = (Array.isArray(xfHost) ? xfHost[0] : xfHost) || req.headers.host;
-  if (!hostHeader || typeof hostHeader !== 'string') return undefined;
-  return hostHeader.split(',')[0].trim().toLowerCase();
-}
-
 export function isOriginAllowed(origin: string | undefined, requestHost?: string): boolean {
   if (!origin) return true;
   let parsed: URL;
@@ -174,7 +237,7 @@ export function isOriginAllowed(origin: string | undefined, requestHost?: string
   }
 
   const normalizedOrigin = parsed.origin.toLowerCase();
-  if (requestHost && parsed.host.toLowerCase() === requestHost.toLowerCase()) {
+  if (requestHost && normalizeHostPort(parsed.host) === normalizeHostPort(requestHost)) {
     return true;
   }
 
@@ -194,6 +257,8 @@ const CSRF_EXEMPT_PUBLIC_AUTH_PATHS = new Set([
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/forgot-password',
+  '/api/auth/verify-reset-otp',
+  '/api/auth/resend-reset-otp',
   '/api/auth/reset-password',
   '/api/auth/verify-email',
 ]);
@@ -232,12 +297,13 @@ export function csrfProtectionMiddleware(req: Request, res: Response, next: Next
     return next();
   }
 
-  // If the request carries a session cookie, strictly enforce Double-Submit CSRF token validation
-  const sessionCookie =
+  // If the request carries a session or refresh cookie, strictly enforce Double-Submit CSRF token validation
+  const sessionOrRefreshCookie =
     getCookieValue(req as any, SESSION_COOKIE_NAME) ||
+    getCookieValue(req as any, REFRESH_COOKIE_NAME) ||
     getCookieValue(req as any, LEGACY_SESSION_COOKIE_NAME);
 
-  if (!sessionCookie) {
+  if (!sessionOrRefreshCookie) {
     return next();
   }
 

@@ -1,25 +1,22 @@
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { authActionTokens } from '../db/schema.js';
-import { logger } from './logger.js';
+import {
+  getLatestDevSandboxSecret,
+  NotificationDeliveryResult,
+  resolveEmailDeliveryProvider,
+} from '../auth/providers.js';
 
-export type AuthTokenPurpose = 'PASSWORD_RESET' | 'EMAIL_VERIFICATION';
+export type AuthTokenPurpose = 'PASSWORD_RESET' | 'EMAIL_VERIFICATION' | 'RESET_AUTHORIZATION';
 
 const PASSWORD_RESET_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const RESET_AUTHORIZATION_TTL_MS = 10 * 60 * 1000; // 10 minutes single-use post-OTP authorization
 
-// Bounded in-memory dev/test outbox for local verification without external SMTP
-interface DevOutboxEntry {
-  to: string;
-  purpose: AuthTokenPurpose;
-  token: string;
-  expiresAt: string;
-  createdAt: string;
-}
-
-const devMailOutbox: DevOutboxEntry[] = [];
+// Per-token-hash mutex prevents concurrent replay races across event-loop ticks
+const inFlightConsumptionLocks = new Map<string, Promise<any>>();
 
 export function hashActionToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -29,14 +26,17 @@ export async function issueAuthActionToken(
   userId: string,
   email: string,
   purpose: AuthTokenPurpose,
-  customTtlMs?: number
-): Promise<{ rawToken: string; expiresAt: Date }> {
+  customTtlMs?: number,
+  options?: { skipDelivery?: boolean }
+): Promise<{ rawToken: string; expiresAt: Date; delivery?: NotificationDeliveryResult }> {
   const ttlMs =
     typeof customTtlMs === 'number'
       ? customTtlMs
-      : purpose === 'PASSWORD_RESET'
-        ? PASSWORD_RESET_TTL_MS
-        : EMAIL_VERIFY_TTL_MS;
+      : purpose === 'RESET_AUTHORIZATION'
+        ? RESET_AUTHORIZATION_TTL_MS
+        : purpose === 'PASSWORD_RESET'
+          ? PASSWORD_RESET_TTL_MS
+          : EMAIL_VERIFY_TTL_MS;
 
   // Invalidate any previous unused tokens for this user + purpose
   await db
@@ -53,18 +53,42 @@ export async function issueAuthActionToken(
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashActionToken(rawToken);
   const expiresAt = new Date(Date.now() + ttlMs);
+  const tokenId = uuidv4();
 
   await db.insert(authActionTokens).values({
-    id: uuidv4(),
+    id: tokenId,
     userId,
     purpose,
     tokenHash,
     expiresAt,
   });
 
-  await deliverAuthNotification(email, purpose, rawToken, expiresAt);
+  if (options?.skipDelivery || purpose === 'RESET_AUTHORIZATION') {
+    return { rawToken, expiresAt };
+  }
 
-  return { rawToken, expiresAt };
+  const provider = resolveEmailDeliveryProvider();
+  const delivery = await provider.send({
+    to: email,
+    purpose,
+    subject:
+      purpose === 'EMAIL_VERIFICATION'
+        ? 'Verify your FortiX account email'
+        : 'FortiX password reset instructions',
+    codeOrToken: rawToken,
+    expiresAt,
+  });
+
+  // If external delivery failed (e.g., webhook HTTP 500 or unconfigured prod provider),
+  // immediately mark the issued token used/invalidated so undelivered tokens never linger active.
+  if (!delivery.delivered) {
+    await db
+      .update(authActionTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(authActionTokens.id, tokenId));
+  }
+
+  return { rawToken, expiresAt, delivery };
 }
 
 export async function consumeAuthActionToken(
@@ -76,87 +100,90 @@ export async function consumeAuthActionToken(
   }
 
   const tokenHash = hashActionToken(rawToken.trim());
-  const [record] = await db
-    .select()
-    .from(authActionTokens)
-    .where(and(eq(authActionTokens.tokenHash, tokenHash), eq(authActionTokens.purpose, expectedPurpose)))
-    .limit(1);
+  const lockKey = `${expectedPurpose}:${tokenHash}`;
 
-  if (!record) {
+  const previous = inFlightConsumptionLocks.get(lockKey) ?? Promise.resolve();
+  let releaseLock!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  inFlightConsumptionLocks.set(lockKey, previous.then(() => gate));
+
+  await previous;
+  try {
+    const now = new Date();
+
+    // Atomic conditional UPDATE ensures only a single caller can transition used_at from NULL -> timestamp
+    const consumedRows = await db
+      .update(authActionTokens)
+      .set({ usedAt: now })
+      .where(
+        and(
+          eq(authActionTokens.tokenHash, tokenHash),
+          eq(authActionTokens.purpose, expectedPurpose),
+          isNull(authActionTokens.usedAt),
+          gt(authActionTokens.expiresAt, now)
+        )
+      )
+      .returning({ id: authActionTokens.id, userId: authActionTokens.userId });
+
+    if (consumedRows.length === 1) {
+      return { valid: true, userId: consumedRows[0].userId };
+    }
+
+    // Read-only diagnostic lookup to provide accurate rejection reason (expired vs already used vs unknown)
+    const [existing] = await db
+      .select({
+        usedAt: authActionTokens.usedAt,
+        expiresAt: authActionTokens.expiresAt,
+      })
+      .from(authActionTokens)
+      .where(
+        and(
+          eq(authActionTokens.tokenHash, tokenHash),
+          eq(authActionTokens.purpose, expectedPurpose)
+        )
+      )
+      .limit(1);
+
+    if (!existing) {
+      return { valid: false, reason: 'Invalid or expired token' };
+    }
+    if (existing.usedAt !== null) {
+      return { valid: false, reason: 'Token has already been used' };
+    }
+    if (new Date(existing.expiresAt).getTime() <= now.getTime()) {
+      return { valid: false, reason: 'Token has expired' };
+    }
     return { valid: false, reason: 'Invalid or expired token' };
+  } finally {
+    releaseLock();
+    if (inFlightConsumptionLocks.get(lockKey) !== undefined) {
+      // Clean up lock reference once settled
+      Promise.resolve().then(() => {
+        inFlightConsumptionLocks.delete(lockKey);
+      });
+    }
   }
+}
 
-  if (record.usedAt !== null) {
-    return { valid: false, reason: 'Token has already been used' };
-  }
-
-  if (new Date(record.expiresAt).getTime() <= Date.now()) {
-    return { valid: false, reason: 'Token has expired' };
-  }
-
+export async function invalidateUserActionTokens(
+  userId: string,
+  purposes: AuthTokenPurpose[] = ['PASSWORD_RESET', 'RESET_AUTHORIZATION']
+): Promise<void> {
+  if (!userId || purposes.length === 0) return;
   await db
     .update(authActionTokens)
     .set({ usedAt: new Date() })
-    .where(eq(authActionTokens.id, record.id));
-
-  return { valid: true, userId: record.userId };
-}
-
-async function deliverAuthNotification(
-  to: string,
-  purpose: AuthTokenPurpose,
-  rawToken: string,
-  expiresAt: Date
-): Promise<void> {
-  // Optional external transactional mail webhook (never logs rawToken)
-  const mailWebhookUrl = process.env.AUTH_MAIL_WEBHOOK_URL;
-  if (mailWebhookUrl) {
-    try {
-      await fetch(mailWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(process.env.AUTH_MAIL_WEBHOOK_SECRET
-            ? { Authorization: `Bearer ${process.env.AUTH_MAIL_WEBHOOK_SECRET}` }
-            : {}),
-        },
-        body: JSON.stringify({
-          to,
-          purpose,
-          token: rawToken,
-          expiresAt: expiresAt.toISOString(),
-        }),
-      });
-      logger.info({ purpose }, '[AuthMailer] Transactional auth notification dispatched');
-      return;
-    } catch (err: any) {
-      logger.error({ purpose, error: err?.message }, '[AuthMailer] Transactional mail webhook delivery failed');
-    }
-  }
-
-  // Record in local dev/test outbox ONLY outside production
-  if (process.env.NODE_ENV !== 'production') {
-    devMailOutbox.push({
-      to: to.toLowerCase(),
-      purpose,
-      token: rawToken,
-      expiresAt: expiresAt.toISOString(),
-      createdAt: new Date().toISOString(),
-    });
-    if (devMailOutbox.length > 200) {
-      devMailOutbox.splice(0, devMailOutbox.length - 200);
-    }
-  }
+    .where(
+      and(
+        eq(authActionTokens.userId, userId),
+        inArray(authActionTokens.purpose, purposes),
+        isNull(authActionTokens.usedAt)
+      )
+    );
 }
 
 export function getLatestDevOutboxToken(email: string, purpose: AuthTokenPurpose): string | undefined {
-  if (process.env.NODE_ENV === 'production') return undefined;
-  const normalized = email.trim().toLowerCase();
-  for (let i = devMailOutbox.length - 1; i >= 0; i--) {
-    const item = devMailOutbox[i];
-    if (item.to === normalized && item.purpose === purpose) {
-      return item.token;
-    }
-  }
-  return undefined;
+  return getLatestDevSandboxSecret(email, purpose, 'EMAIL');
 }

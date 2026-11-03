@@ -1,0 +1,15 @@
+flowchart LR
+  INET["HTTPS Clients & Operators"] --> LB["Reverse Proxy / TLS Ingress"]
+  subgraph Docker["Docker Network / Cloud VPC"]
+    API["Container: fortix-api (node dist/server.cjs, Non-Root User fortix, Port 3000/8080)"]
+    WRK["Container: fortix-worker (node dist/worker.cjs, BullMQ + Webhook Workers)"]
+    PG[("Container: postgres:15-alpine (pgdata Volume + RLS)")]
+    RD[("Container: redis:7-alpine (appendonly yes, redisdata Volume)")]
+    VOL[("Persistent Volume: /app/storage/artifacts")]
+  end
+  LB --> API
+  API --> PG
+  API --> RD
+  API --> VOL
+  WRK --> PG
+  WRK --> RD

@@ -305,3 +305,40 @@ CREATE POLICY "fortix_studio_records_tenant_isolation" ON "studio_records"
         AND o."owner_id" = current_setting('app.current_user_id', true)
     )
   );
+
+ALTER TABLE "refresh_tokens" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fortix_refresh_tokens_user_isolation" ON "refresh_tokens";
+CREATE POLICY "fortix_refresh_tokens_user_isolation" ON "refresh_tokens"
+  USING (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  )
+  WITH CHECK (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  );
+
+ALTER TABLE "auth_action_tokens" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fortix_auth_action_tokens_user_isolation" ON "auth_action_tokens";
+CREATE POLICY "fortix_auth_action_tokens_user_isolation" ON "auth_action_tokens"
+  USING (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  )
+  WITH CHECK (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  );
+
+ALTER TABLE "recovery_challenges" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fortix_recovery_challenges_user_isolation" ON "recovery_challenges";
+CREATE POLICY "fortix_recovery_challenges_user_isolation" ON "recovery_challenges"
+  USING (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  )
+  WITH CHECK (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  );
+

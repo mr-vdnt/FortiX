@@ -108,6 +108,42 @@ export function setAnalyticsOptOut(optOut: boolean): void {
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+let inFlightSessionRefresh: Promise<boolean> | null = null;
+
+export async function attemptSilentSessionRefresh(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (inFlightSessionRefresh) return inFlightSessionRefresh;
+
+  inFlightSessionRefresh = (async () => {
+    try {
+      const csrf = getCsrfToken();
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Fortix-Client': 'browser',
+          'X-Requested-With': 'FortiX-Control-Plane',
+          ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
+        },
+      });
+      if (!res.ok) return false;
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) return false;
+      const data = await res.json().catch(() => null);
+      if (!data?.refreshed || !data?.user?.id) return false;
+      if (data.csrfToken) setCsrfToken(data.csrfToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      inFlightSessionRefresh = null;
+    }
+  })();
+
+  return inFlightSessionRefresh;
+}
+
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const projectId = getActiveProjectId();
   const headers = new Headers(options.headers || {});
@@ -162,6 +198,21 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
       response = await fetch(targetUrl, requestInit);
     } else {
       throw err;
+    }
+  }
+
+  if (response.status === 401 && !targetUrl.startsWith('/api/auth/')) {
+    const refreshed = await attemptSilentSessionRefresh();
+    if (refreshed) {
+      const retryHeaders = new Headers(requestInit.headers || {});
+      if (MUTATING_METHODS.has(method)) {
+        const updatedCsrf = getCsrfToken();
+        if (updatedCsrf) retryHeaders.set('X-CSRF-Token', updatedCsrf);
+      }
+      response = await fetch(targetUrl, {
+        ...requestInit,
+        headers: retryHeaders,
+      });
     }
   }
 

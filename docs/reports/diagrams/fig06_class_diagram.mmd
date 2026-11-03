@@ -1,0 +1,16 @@
+classDiagram
+  class User { +string id +string email +string phoneE164 +boolean phoneVerified +string role }
+  class RefreshSessionService { +createRefreshSession() +rotateRefreshSession() +revokeUserSessionFamily() }
+  class RecoveryService { +requestPasswordRecoveryOtp() +verifyPasswordRecoveryOtp() +computeOtpHmac() }
+  class Project { +string id +string orgId +string name +string environment }
+  class ApiRoute { +string id +string projectId +string pathPattern +string targetUrl }
+  class SecurityPolicy { +string id +int rateLimitRpm +boolean enableWaf +boolean enableSsrf }
+  class GatewayPipeline { +authenticateKey() +inspectThreats() +checkRateLimit() +injectFault() }
+  class StudioTargetHandler { +handleStudioUpstreamRequest() +validateStudioRecordPayload() }
+  class VerificationEngine { +verifyPolicy() +flushTelemetryBarrier() +evaluateExperimentVerification() }
+  User "1" --> "*" Project
+  Project "1" --> "*" ApiRoute
+  ApiRoute "1" --> "0..1" SecurityPolicy
+  GatewayPipeline --> ApiRoute
+  GatewayPipeline --> StudioTargetHandler
+  VerificationEngine --> ApiRoute

@@ -38,6 +38,7 @@ function createMemDb() {
     '0003_workflow_runs.sql',
     '0004_auth_security_tokens.sql',
     '0005_api_studio.sql',
+    '0006_auth_sessions_and_recovery.sql',
   ];
   for (const file of files) {
     const filePath = path.join(process.cwd(), 'drizzle', file);

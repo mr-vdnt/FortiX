@@ -3,6 +3,8 @@ import { pgTable, text, timestamp, boolean, jsonb, integer, index, uniqueIndex }
 export const users = pgTable('users', {
   id: text('id').primaryKey(), // Using uuid
   email: text('email').notNull().unique(),
+  phoneE164: text('phone_e164').unique(),
+  phoneVerified: boolean('phone_verified').default(false).notNull(),
   passwordHash: text('password_hash').notNull(),
   role: text('role').notNull().default('DEVELOPER'),
   emailVerified: boolean('email_verified').default(false).notNull(),
@@ -12,7 +14,7 @@ export const users = pgTable('users', {
 export const authActionTokens = pgTable('auth_action_tokens', {
   id: text('id').primaryKey(),
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  purpose: text('purpose').notNull(), // PASSWORD_RESET | EMAIL_VERIFICATION
+  purpose: text('purpose').notNull(), // PASSWORD_RESET | EMAIL_VERIFICATION | RESET_AUTHORIZATION
   tokenHash: text('token_hash').notNull().unique(),
   expiresAt: timestamp('expires_at').notNull(),
   usedAt: timestamp('used_at'),
@@ -26,10 +28,46 @@ export const authActionTokens = pgTable('auth_action_tokens', {
 export const refreshTokens = pgTable('refresh_tokens', {
   id: text('id').primaryKey(),
   userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  tokenHash: text('token_hash').notNull(),
+  tokenHash: text('token_hash').notNull().unique(),
+  familyId: text('family_id'),
+  replacedById: text('replaced_by_id'),
+  rememberMe: boolean('remember_me').default(false).notNull(),
   expiresAt: timestamp('expires_at').notNull(),
+  absoluteExpiresAt: timestamp('absolute_expires_at'),
+  lastUsedAt: timestamp('last_used_at'),
   revokedAt: timestamp('revoked_at'),
+  reuseDetectedAt: timestamp('reuse_detected_at'),
+  userAgentHash: text('user_agent_hash'),
+  ipHash: text('ip_hash'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    familyIdx: index('refresh_tokens_family_idx').on(table.familyId),
+    userIdx: index('refresh_tokens_user_idx').on(table.userId),
+  };
+});
+
+export const recoveryChallenges = pgTable('recovery_challenges', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  channel: text('channel').notNull(), // EMAIL | SMS
+  purpose: text('purpose').notNull(), // PASSWORD_RESET | PHONE_VERIFICATION
+  destinationMasked: text('destination_masked').notNull(),
+  otpHmac: text('otp_hmac').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  failedAttempts: integer('failed_attempts').default(0).notNull(),
+  maxAttempts: integer('max_attempts').default(5).notNull(),
+  resendCount: integer('resend_count').default(0).notNull(),
+  lastSentAt: timestamp('last_sent_at').defaultNow().notNull(),
+  resendAvailableAt: timestamp('resend_available_at').notNull(),
+  consumedAt: timestamp('consumed_at'),
+  invalidatedAt: timestamp('invalidated_at'),
+  invalidationReason: text('invalidation_reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    userPurposeIdx: index('recovery_challenges_user_purpose_idx').on(table.userId, table.purpose, table.createdAt),
+  };
 });
 
 export const organizations = pgTable('organizations', {

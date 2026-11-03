@@ -1,0 +1,33 @@
+flowchart TB
+  subgraph Clients["External Actors & Traffic Sources"]
+    OP["Operator Browser (React 19 SPA)"]
+    CON["External API Consumer"]
+  end
+  subgraph FortiX["FortiX Runtime Platform (Node.js 22 / TypeScript)"]
+    CP["Control Plane API (/api/auth, /api/control/*)"]
+    GW["Gateway Enforcement Plane (/proxy/:routeId/*)"]
+    ST["FortiX API Studio Target Handler"]
+    WK["BullMQ Experiment Worker"]
+    TW["Telemetry Stream Consumer"]
+    VE["Deterministic Verification Engine"]
+  end
+  subgraph Data["Persistence & State Tier"]
+    PG[("PostgreSQL 15 (21 Tables + RLS)")]
+    RD[("Redis 7 (Lua Bucket, Streams, Pub/Sub, BullMQ)")]
+    FS[("Artifact Store (SHA-256 PDFs)")]
+  end
+  UP["External Upstream Target API"]
+  OP -->|HTTPS + HttpOnly Cookie + CSRF| CP
+  CON -->|HTTP/S + X-API-Key| GW
+  CP --> PG
+  CP --> RD
+  GW -->|1. SSRF + Key + WAF + Lua Bucket| RD
+  GW -->|2a. Internal Studio Route| ST
+  GW -->|2b. External Proxy Route| UP
+  ST --> PG
+  GW -->|XADD Telemetry| RD
+  TW -->|XREADGROUP + Batch Insert| PG
+  WK -->|3-Phase Probes| GW
+  WK --> VE
+  VE -->|Flush Barrier + Evaluate| PG
+  VE --> FS
