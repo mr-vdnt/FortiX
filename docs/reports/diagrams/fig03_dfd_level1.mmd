@@ -1,7 +1,7 @@
 flowchart TB
   E1["E1: API Operator"] --> P1(("1.0 Auth & OTP Recovery"))
   E1 --> P2(("2.0 Route, Key & Policy Mgmt"))
-  E1 --> P3(("3.0 API Studio Engine"))
+  E1 --> P3(("3.0 API Studio & Learning"))
   E1 --> P5(("5.0 Chaos Experiment Worker"))
   E3["E3: API Consumer"] --> P4(("4.0 Gateway Enforcement"))
   P4 --> E4["E4: Upstream API"]
@@ -11,9 +11,9 @@ flowchart TB
   P6 --> P7(("7.0 Evidence PDF & Webhooks"))
   P7 --> E1
   P7 --> E5["E5: Webhook / Mail / SMS"]
-  P1 <--> D1[("D1: PostgreSQL")]
+  P1 <--> D1[("D1: PostgreSQL 23 Tables")]
   P2 <--> D1
   P3 <--> D1
-  P4 <--> D2[("D2: Redis")]
+  P4 <--> D2[("D2: Redis 7")]
   P6 <--> D1
   P7 <--> D3[("D3: Artifact Store")]

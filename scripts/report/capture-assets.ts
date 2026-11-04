@@ -38,7 +38,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
     VE["Deterministic Verification Engine"]
   end
   subgraph Data["Persistence & State Tier"]
-    PG[("PostgreSQL 15 (21 Tables + RLS)")]
+    PG[("PostgreSQL 15 (23 Tables + RLS)")]
     RD[("Redis 7 (Lua Bucket, Streams, Pub/Sub, BullMQ)")]
     FS[("Artifact Store (SHA-256 PDFs)")]
   end
@@ -51,7 +51,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
   GW -->|2a. Internal Studio Route| ST
   GW -->|2b. External Proxy Route| UP
   ST --> PG
-  GW -->|XADD Telemetry| RD
+  GW -->|XADD fortix:stream:metrics| RD
   TW -->|XREADGROUP + Batch Insert| PG
   WK -->|3-Phase Probes| GW
   WK --> VE
@@ -62,12 +62,12 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <rect x="40" y="30" width="520" height="86" rx="10" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="2"/>
       <text x="300" y="58" text-anchor="middle" font-weight="700" font-size="15" fill="#1E3A8A">API Operator / Security Engineer (React 19 Control Plane SPA)</text>
       <text x="300" y="80" text-anchor="middle" font-size="12" fill="#334155">HttpOnly Session + Rotating Refresh Cookie + Double-Submit CSRF + Socket.IO Live Stream</text>
-      <text x="300" y="99" text-anchor="middle" font-family="monospace" font-size="11" fill="#1D4ED8">Routes: /login · /studio · /apis · /security · /experiments · /verifications · /settings</text>
+      <text x="300" y="99" text-anchor="middle" font-family="monospace" font-size="9.4" fill="#1D4ED8">Routes: /login · /studio · /apis · /security · /experiments · /learning-center</text>
 
       <rect x="640" y="30" width="520" height="86" rx="10" fill="#F0FDF4" stroke="#15803D" stroke-width="2"/>
       <text x="900" y="58" text-anchor="middle" font-weight="700" font-size="15" fill="#14532D">External API Consumer &amp; Automated Resilience Probes</text>
       <text x="900" y="80" text-anchor="middle" font-size="12" fill="#334155">Sends Authenticated REST Traffic Through FortiX Reverse-Proxy Gateway</text>
-      <text x="900" y="99" text-anchor="middle" font-family="monospace" font-size="11" fill="#15803D">Headers: X-API-Key: fx_live_... | X-Experiment-Id | X-FortiX-Probe-Id</text>
+      <text x="900" y="99" text-anchor="middle" font-family="monospace" font-size="11" fill="#15803D">Headers: X-API-Key: fx_live_... | X-Experiment-Id | X-Request-ID</text>
 
       <!-- Arrows from Actors -->
       <line x1="300" y1="116" x2="300" y2="168" stroke="#1D4ED8" stroke-width="2.2" marker-end="url(#arrowBlue)"/>
@@ -84,8 +84,8 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <text x="425" y="240" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">Tenant &amp; Policy Governance</text>
       <text x="425" y="259" text-anchor="middle" font-size="11" fill="#475569">RBAC · BOLA Guard · Zod Schemas</text>
       <rect x="60" y="288" width="230" height="58" rx="7" fill="#FFFFFF" stroke="#64748B"/>
-      <text x="175" y="310" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">API Studio Provisioner</text>
-      <text x="175" y="329" text-anchor="middle" font-size="11" fill="#475569">100-Product Seed · OpenAPI 3.0.3</text>
+      <text x="175" y="310" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">API Studio &amp; Learning Center</text>
+      <text x="175" y="329" text-anchor="middle" font-size="11" fill="#475569">100-Product Seed · Guided Tutorials</text>
       <rect x="310" y="288" width="230" height="58" rx="7" fill="#FFFFFF" stroke="#64748B"/>
       <text x="425" y="310" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">Reports, Audit &amp; Webhooks</text>
       <text x="425" y="329" text-anchor="middle" font-size="11" fill="#475569">PDFKit · SHA-256 · HMAC Hooks</text>
@@ -121,7 +121,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
 
       <rect x="810" y="398" width="350" height="110" rx="10" fill="#FEF2F2" stroke="#B91C1C" stroke-width="2"/>
       <text x="985" y="424" text-anchor="middle" font-weight="700" font-size="13.5" fill="#7F1D1D">Upstream Targets (Studio &amp; External)</text>
-      <text x="985" y="446" text-anchor="middle" font-size="11.5" fill="#334155">Internal: fortix-studio://&lt;apiId&gt; (CRUD)</text>
+      <text x="985" y="446" text-anchor="middle" font-size="11" fill="#334155">Internal: fortix-studio.internal/studio/&lt;id&gt;</text>
       <text x="985" y="466" text-anchor="middle" font-size="11.5" fill="#334155">External: Public HTTPS Microservices</text>
       <text x="985" y="488" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#B91C1C">Credentials Stripped Before Forwarding</text>
 
@@ -133,15 +133,15 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <!-- Tier 4: Persistence -->
       <rect x="40" y="548" width="440" height="112" rx="10" fill="#F1F5F9" stroke="#0F172A" stroke-width="2"/>
       <text x="260" y="576" text-anchor="middle" font-weight="700" font-size="14" fill="#0F172A">PostgreSQL 15 Relational Store (Drizzle ORM)</text>
-      <text x="260" y="598" text-anchor="middle" font-size="11.5" fill="#334155">21 Normalized Tables · Foreign Key Cascades · Optimistic Versioning</text>
+      <text x="260" y="598" text-anchor="middle" font-size="11.5" fill="#334155">23 Normalized Tables · Foreign Key Cascades · Optimistic Versioning</text>
       <text x="260" y="618" text-anchor="middle" font-size="11.5" fill="#334155">Row-Level Security (RLS) Tenant Isolation · pg-mem Sandbox Fallback</text>
-      <text x="260" y="640" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#1E40AF">users · refresh_tokens · recovery_challenges · api_routes · verifications · studio_*</text>
+      <text x="260" y="640" text-anchor="middle" font-family="monospace" font-size="9.2" fill="#1E40AF">users · refresh_tokens · api_routes · experiments · studio_* · learning_*</text>
 
       <rect x="510" y="548" width="400" height="112" rx="10" fill="#FFF1F2" stroke="#BE123C" stroke-width="2"/>
       <text x="710" y="576" text-anchor="middle" font-weight="700" font-size="14" fill="#881337">Redis 7 State, Streams &amp; Queues</text>
       <text x="710" y="598" text-anchor="middle" font-size="11.5" fill="#334155">Atomic Lua Token-Bucket Rate Limiter (Fail-Closed)</text>
       <text x="710" y="618" text-anchor="middle" font-size="11.5" fill="#334155">Redis Streams Telemetry · Key-Revocation Pub/Sub · BullMQ</text>
-      <text x="710" y="640" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#BE123C">ratelimit:* · fortix:telemetry:stream · fortix:revoked-*</text>
+      <text x="710" y="640" text-anchor="middle" font-family="monospace" font-size="9.8" fill="#BE123C">ratelimit:* · fortix:stream:metrics · fortix:api-key:revoked:v1</text>
 
       <rect x="940" y="548" width="220" height="112" rx="10" fill="#ECFDF5" stroke="#047857" stroke-width="2"/>
       <text x="1050" y="576" text-anchor="middle" font-weight="700" font-size="14" fill="#065F46">Evidence Artifact Store</text>
@@ -162,8 +162,8 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
     height: 600,
     mermaid: `flowchart LR
   OP["API Operator / Developer"] -->|Auth Credentials, Routes, Policies, Studio Specs, Experiments| SYS(("0.0 FortiX Platform"))
-  SYS -->|Session Cookies, Live Telemetry, Verdicts, PDF Reports, OpenAPI| OP
-  ADM["Platform Administrator"] -->|Role Governance, DLQ Replay, System Health Queries| SYS
+  SYS -->|Session Cookies, Live Telemetry, Verdicts, PDF Reports, OpenAPI, Tutorials| OP
+  ADM["Platform Administrator"] -->|Role Governance, Tutorial Catalog Mgmt, DLQ Replay| SYS
   SYS -->|Audit Logs, User Roster, Readiness Status| ADM
   CLI["External API Consumer"] -->|API Requests + X-API-Key| SYS
   SYS -->|Proxied JSON Responses / 401 / 403 / 429 / 504| CLI
@@ -213,7 +213,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
 
       <!-- Flows E2 <-> 0.0 -->
       <path d="M 295 450 L 472 355" stroke="#1D4ED8" stroke-width="2" fill="none" marker-end="url(#arrowBlue)"/>
-      <text x="366" y="388" text-anchor="middle" font-size="11" font-weight="600" fill="#1E3A8A">RBAC Updates, DLQ Retry, Readiness Probes</text>
+      <text x="366" y="388" text-anchor="middle" font-size="11" font-weight="600" fill="#1E3A8A">RBAC, Tutorial Catalog, DLQ Retry</text>
       <path d="M 484 378 L 295 482" stroke="#0F172A" stroke-width="1.8" stroke-dasharray="5,3" fill="none" marker-end="url(#arrowSlate)"/>
       <text x="398" y="452" text-anchor="middle" font-size="11" fill="#334155">Audit Trail, Health &amp; Queue Diagnostics</text>
 
@@ -245,7 +245,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
     mermaid: `flowchart TB
   E1["E1: API Operator"] --> P1(("1.0 Auth & OTP Recovery"))
   E1 --> P2(("2.0 Route, Key & Policy Mgmt"))
-  E1 --> P3(("3.0 API Studio Engine"))
+  E1 --> P3(("3.0 API Studio & Learning"))
   E1 --> P5(("5.0 Chaos Experiment Worker"))
   E3["E3: API Consumer"] --> P4(("4.0 Gateway Enforcement"))
   P4 --> E4["E4: Upstream API"]
@@ -255,17 +255,17 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
   P6 --> P7(("7.0 Evidence PDF & Webhooks"))
   P7 --> E1
   P7 --> E5["E5: Webhook / Mail / SMS"]
-  P1 <--> D1[("D1: PostgreSQL")]
+  P1 <--> D1[("D1: PostgreSQL 23 Tables")]
   P2 <--> D1
   P3 <--> D1
-  P4 <--> D2[("D2: Redis")]
+  P4 <--> D2[("D2: Redis 7")]
   P6 <--> D1
   P7 <--> D3[("D3: Artifact Store")]`,
     svgBody: `
       <!-- External Entities Left/Right -->
       <rect x="30" y="55" width="175" height="62" rx="6" fill="#FFFFFF" stroke="#0F172A" stroke-width="2"/>
       <text x="117" y="83" text-anchor="middle" font-weight="700" font-size="12.5" fill="#0F172A">E1: API Operator</text>
-      <text x="117" y="101" text-anchor="middle" font-size="10.5" fill="#475569">Developer / Admin</text>
+      <text x="117" y="101" text-anchor="middle" font-size="10.5" fill="#475569">Admin / Developer / Viewer</text>
 
       <rect x="30" y="310" width="175" height="62" rx="6" fill="#FFFFFF" stroke="#0F172A" stroke-width="2"/>
       <text x="117" y="338" text-anchor="middle" font-weight="700" font-size="12.5" fill="#0F172A">E3: API Consumer</text>
@@ -291,15 +291,15 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <text x="615" y="106" text-anchor="middle" font-size="10.5" fill="#475569">Tenant Isolation · Key Hashing</text>
 
       <rect x="760" y="40" width="210" height="84" rx="18" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="2"/>
-      <text x="865" y="68" text-anchor="middle" font-weight="700" font-size="12.5" fill="#1E3A8A">3.0 FortiX API Studio</text>
-      <text x="865" y="86" text-anchor="middle" font-weight="700" font-size="12.5" fill="#1E3A8A">Schema &amp; CRUD Engine</text>
-      <text x="865" y="106" text-anchor="middle" font-size="10.5" fill="#475569">100-Product Seed · OpenAPI 3.0</text>
+      <text x="865" y="68" text-anchor="middle" font-weight="700" font-size="12.5" fill="#1E3A8A">3.0 API Studio &amp; Guided</text>
+      <text x="865" y="86" text-anchor="middle" font-weight="700" font-size="12.5" fill="#1E3A8A">Learning Center Engine</text>
+      <text x="865" y="106" text-anchor="middle" font-size="10.5" fill="#475569">100-Product Seed · Tutorials</text>
 
       <!-- Data Store D1 PostgreSQL -->
       <line x1="260" y1="185" x2="970" y2="185" stroke="#0F172A" stroke-width="2.5"/>
       <line x1="260" y1="225" x2="970" y2="225" stroke="#0F172A" stroke-width="2.5"/>
       <rect x="260" y="186" width="710" height="38" fill="#F8FAFC"/>
-      <text x="615" y="210" text-anchor="middle" font-weight="700" font-size="13" fill="#0F172A">D1: PostgreSQL Relational Store (21 Tables: users, refresh_tokens, recovery_challenges, api_routes, studio_*, verifications)</text>
+      <text x="615" y="210" text-anchor="middle" font-weight="700" font-size="12.4" fill="#0F172A">D1: PostgreSQL Store (23 Tables: users, refresh_tokens, recovery_challenges, api_routes, studio_*, verifications, learning_*)</text>
 
       <!-- Process 4.0 & 5.0 -->
       <rect x="500" y="295" width="250" height="92" rx="18" fill="#FFFBEB" stroke="#B45309" stroke-width="2.2"/>
@@ -316,7 +316,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <line x1="500" y1="440" x2="960" y2="440" stroke="#BE123C" stroke-width="2.5"/>
       <line x1="500" y1="480" x2="960" y2="480" stroke="#BE123C" stroke-width="2.5"/>
       <rect x="500" y="441" width="460" height="38" fill="#FFF1F2"/>
-      <text x="730" y="465" text-anchor="middle" font-weight="700" font-size="12.5" fill="#881337">D2: Redis Store (Lua Token Bucket · Telemetry Stream · Key Pub/Sub · BullMQ)</text>
+      <text x="730" y="465" text-anchor="middle" font-weight="700" font-size="12" fill="#881337">D2: Redis 7 (Lua Token Bucket · fortix:stream:metrics · Key Pub/Sub · BullMQ)</text>
 
       <!-- Process 6.0 & 7.0 -->
       <rect x="235" y="555" width="250" height="88" rx="18" fill="#ECFEFF" stroke="#0E7490" stroke-width="2"/>
@@ -355,7 +355,6 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <line x1="485" y1="599" x2="533" y2="599" stroke="#047857" stroke-width="2" marker-end="url(#arrowGreen)"/>
       <line x1="765" y1="576" x2="993" y2="576" stroke="#6D28D9" stroke-width="2" marker-end="url(#arrowSlate)"/>
       <path d="M 765 618 L 860 638" stroke="#047857" stroke-width="1.8" fill="none" marker-end="url(#arrowGreen)"/>
-      <path d="M 190 55 L 365 20 L 365 38" stroke="#0F172A" stroke-width="1.4" stroke-dasharray="4,3" fill="none"/>
     `,
   },
   {
@@ -371,7 +370,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
   P43 --> P44("4.4 Redis Lua Token Bucket")
   P44 --> P45("4.5 Post-Auth Fault Injector")
   P45 --> P46("4.6 Studio / Upstream Proxy")
-  P46 --> P61("6.1 Redis Stream Telemetry")
+  P46 --> P61("6.1 fortix:stream:metrics")
   P61 --> P62("6.2 Flush Barrier & Phase Split")
   P62 --> P63("6.3 Deterministic Verdict Engine")`,
     svgBody: `
@@ -391,7 +390,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
 
       <rect x="430" y="65" width="165" height="95" rx="10" fill="#FFFBEB" stroke="#D97706" stroke-width="2"/>
       <text x="512" y="92" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">4.3 WAF Inspector</text>
-      <text x="512" y="110" text-anchor="middle" font-size="10.5" fill="#475569">Decode URI, inspect</text>
+      <text x="512" y="110" text-anchor="middle" font-size="10.5" fill="#475569">Multi-decode URI,</text>
       <text x="512" y="126" text-anchor="middle" font-size="10.5" fill="#475569">SQLi, XSS, Traversal</text>
       <text x="512" y="146" text-anchor="middle" font-family="monospace" font-size="10" fill="#B45309">Reject → 403 + Event</text>
 
@@ -420,15 +419,15 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <line x1="985" y1="112" x2="1013" y2="112" stroke="#0F172A" stroke-width="2" marker-end="url(#arrowSlate)"/>
 
       <!-- Middle Shared Stores -->
-      <rect x="120" y="220" width="420" height="54" rx="6" fill="#FFF1F2" stroke="#BE123C" stroke-width="2"/>
-      <text x="330" y="252" text-anchor="middle" font-weight="700" font-size="12.5" fill="#881337">D2: Redis Stream (fortix:telemetry:stream) + Lua Bucket State</text>
+      <rect x="95" y="220" width="465" height="54" rx="6" fill="#FFF1F2" stroke="#BE123C" stroke-width="2"/>
+      <text x="327" y="252" text-anchor="middle" font-weight="700" font-size="12" fill="#881337">D2: Redis Streams (fortix:stream:metrics &amp; security) + Lua Bucket</text>
 
-      <rect x="640" y="220" width="440" height="54" rx="6" fill="#F8FAFC" stroke="#0F172A" stroke-width="2"/>
-      <text x="860" y="252" text-anchor="middle" font-weight="700" font-size="12.5" fill="#0F172A">D1: PostgreSQL (metric_logs, security_events, experiments, verifications)</text>
+      <rect x="640" y="220" width="455" height="54" rx="6" fill="#F8FAFC" stroke="#0F172A" stroke-width="2"/>
+      <text x="867" y="252" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">D1: PostgreSQL (metric_logs, security_events, experiments, verifications)</text>
 
       <path d="M 1090 160 L 1090 195 L 330 195 L 330 218" stroke="#BE123C" stroke-width="1.8" fill="none" marker-end="url(#arrowSlate)"/>
-      <line x1="540" y1="247" x2="638" y2="247" stroke="#0F172A" stroke-width="2" marker-end="url(#arrowSlate)"/>
-      <text x="589" y="239" text-anchor="middle" font-size="10" font-weight="600" fill="#334155">Batch XACK</text>
+      <line x1="560" y1="247" x2="638" y2="247" stroke="#0F172A" stroke-width="2" marker-end="url(#arrowSlate)"/>
+      <text x="599" y="239" text-anchor="middle" font-size="10" font-weight="600" fill="#334155">Batch XACK</text>
 
       <!-- Bottom Pipeline: 6.1 -> 6.4 -->
       <text x="60" y="340" font-weight="700" font-size="13.5" fill="#155E75">SUBSYSTEM 6.0 — DETERMINISTIC VERIFICATION ENGINE (ZERO VACUOUS OR TAUTOLOGICAL PASSES)</text>
@@ -469,9 +468,93 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
     `,
   },
   {
+    id: 'fig04b_dfd_level2_auth_exp',
+    title: 'Figure 2.4: Level 2 Data Flow Diagram — Auth/OTP Recovery (1.0) & Chaos Worker Cleanup (5.0)',
+    subtitle: 'Granular Session Rotation, HMAC-SHA256 OTP Verification, and Bounded Three-Phase Probe Orchestration',
+    width: 1200,
+    height: 600,
+    mermaid: `flowchart LR
+  LOGIN["/api/auth/*"] --> P11("1.1 Identifier & Bcrypt")
+  P11 --> P12("1.2 Refresh Family Rotator")
+  P12 --> P13("1.3 HMAC-SHA256 OTP Verifier")
+  P13 --> P14("1.4 Global Session Revoker")
+  EXP["/api/control/experiments"] --> P51("5.1 BOLA & Bounds Check")
+  P51 --> P52("5.2 Ephemeral fx_test_* Mint")
+  P52 --> P53("5.3 Baseline/Inject/Recover")
+  P53 --> P54("5.4 Guaranteed Finally Cleanup")`,
+    svgBody: `
+      <text x="50" y="45" font-weight="700" font-size="13.5" fill="#1E3A8A">SUBSYSTEM 1.0 — AUTHENTICATION, ROTATING REFRESH SESSIONS &amp; OTP RECOVERY (FTX-AUTH-001)</text>
+      <rect x="40" y="65" width="255" height="115" rx="10" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="2"/>
+      <text x="167" y="92" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">1.1 Identifier &amp; Bcrypt Guard</text>
+      <text x="167" y="112" text-anchor="middle" font-size="10.8" fill="#334155">Normalize email / E.164 phone;</text>
+      <text x="167" y="129" text-anchor="middle" font-size="10.8" fill="#334155">constant-time bcrypt.compare()</text>
+      <text x="167" y="154" text-anchor="middle" font-family="monospace" font-size="10" fill="#1D4ED8">users (phone_verified check)</text>
+
+      <rect x="330" y="65" width="255" height="115" rx="10" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="2"/>
+      <text x="457" y="92" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">1.2 Refresh Family Rotator</text>
+      <text x="457" y="112" text-anchor="middle" font-size="10.8" fill="#334155">Issue 12h or 30d Remember-Me;</text>
+      <text x="457" y="129" text-anchor="middle" font-size="10.8" fill="#334155">detect replay → revoke family</text>
+      <text x="457" y="154" text-anchor="middle" font-family="monospace" font-size="10" fill="#1D4ED8">refresh_tokens + sid denylist</text>
+
+      <rect x="620" y="65" width="255" height="115" rx="10" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="2"/>
+      <text x="747" y="92" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">1.3 HMAC-OTP Verifier</text>
+      <text x="747" y="112" text-anchor="middle" font-size="10.8" fill="#334155">6-digit CSPRNG OTP, 10m TTL,</text>
+      <text x="747" y="129" text-anchor="middle" font-size="10.8" fill="#334155">≤5 attempts, atomic consume</text>
+      <text x="747" y="154" text-anchor="middle" font-family="monospace" font-size="10" fill="#1D4ED8">recovery_challenges</text>
+
+      <rect x="910" y="65" width="250" height="115" rx="10" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="2"/>
+      <text x="1035" y="92" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">1.4 Password &amp; Session Reset</text>
+      <text x="1035" y="112" text-anchor="middle" font-size="10.8" fill="#334155">Consume RESET_AUTHORIZATION,</text>
+      <text x="1035" y="129" text-anchor="middle" font-size="10.8" fill="#334155">revoke all user tokens &amp; sockets</text>
+      <text x="1035" y="154" text-anchor="middle" font-family="monospace" font-size="10" fill="#1D4ED8">auth_action_tokens</text>
+
+      <line x1="295" y1="122" x2="328" y2="122" stroke="#1D4ED8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+      <line x1="585" y1="122" x2="618" y2="122" stroke="#1D4ED8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+      <line x1="875" y1="122" x2="908" y2="122" stroke="#1D4ED8" stroke-width="2" marker-end="url(#arrowBlue)"/>
+
+      <!-- Shared Stores -->
+      <rect x="140" y="230" width="920" height="52" rx="6" fill="#F8FAFC" stroke="#0F172A" stroke-width="2"/>
+      <text x="600" y="261" text-anchor="middle" font-weight="700" font-size="12.2" fill="#0F172A">D1 &amp; D2: PostgreSQL (users, refresh_tokens, recovery_challenges, experiments, api_keys) + Redis BullMQ / PubSub</text>
+
+      <line x1="457" y1="180" x2="457" y2="228" stroke="#0F172A" stroke-width="1.8" marker-end="url(#arrowSlate)"/>
+      <line x1="747" y1="180" x2="747" y2="228" stroke="#0F172A" stroke-width="1.8" marker-end="url(#arrowSlate)"/>
+
+      <text x="50" y="345" font-weight="700" font-size="13.5" fill="#4C1D95">SUBSYSTEM 5.0 — CHAOS EXPERIMENT EXECUTION &amp; GUARANTEED EPHEMERAL CLEANUP</text>
+      <rect x="40" y="368" width="255" height="125" rx="10" fill="#F5F3FF" stroke="#6D28D9" stroke-width="2"/>
+      <text x="167" y="396" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">5.1 Ownership &amp; Bounds</text>
+      <text x="167" y="418" text-anchor="middle" font-size="10.8" fill="#334155">Verify route belongs to project,</text>
+      <text x="167" y="435" text-anchor="middle" font-size="10.8" fill="#334155">enforce DEVELOPER+ &amp; ≤60s cap</text>
+      <text x="167" y="465" text-anchor="middle" font-family="monospace" font-size="10" fill="#6D28D9">status = QUEUED (BullMQ)</text>
+
+      <rect x="330" y="368" width="255" height="125" rx="10" fill="#F5F3FF" stroke="#6D28D9" stroke-width="2"/>
+      <text x="457" y="396" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">5.2 Ephemeral Key Mint</text>
+      <text x="457" y="418" text-anchor="middle" font-size="10.8" fill="#334155">Create temporary 15m TTL</text>
+      <text x="457" y="435" text-anchor="middle" font-size="10.8" fill="#334155">fx_test_* scoped probe key</text>
+      <text x="457" y="465" text-anchor="middle" font-family="monospace" font-size="10" fill="#6D28D9">api_keys (expires_at +15m)</text>
+
+      <rect x="620" y="368" width="255" height="125" rx="10" fill="#F5F3FF" stroke="#6D28D9" stroke-width="2"/>
+      <text x="747" y="396" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">5.3 3-Phase Probe Runner</text>
+      <text x="747" y="418" text-anchor="middle" font-size="10.8" fill="#334155">5 BASELINE → RUNNING Fault</text>
+      <text x="747" y="435" text-anchor="middle" font-size="10.8" fill="#334155">Waves → 5 RECOVERY probes</text>
+      <text x="747" y="465" text-anchor="middle" font-family="monospace" font-size="10" fill="#6D28D9">Polls isExperimentCancelled()</text>
+
+      <rect x="910" y="368" width="250" height="125" rx="10" fill="#ECFDF5" stroke="#047857" stroke-width="2"/>
+      <text x="1035" y="396" text-anchor="middle" font-weight="700" font-size="12" fill="#065F46">5.4 Finally Block Cleanup</text>
+      <text x="1035" y="418" text-anchor="middle" font-size="10.8" fill="#334155">Delete ephemeral fx_test_* key,</text>
+      <text x="1035" y="435" text-anchor="middle" font-size="10.8" fill="#334155">evict key &amp; fault caches, verify</text>
+      <text x="1035" y="465" text-anchor="middle" font-family="monospace" font-size="10" fill="#047857">Zero Zombie Faults</text>
+
+      <line x1="295" y1="430" x2="328" y2="430" stroke="#6D28D9" stroke-width="2" marker-end="url(#arrowSlate)"/>
+      <line x1="585" y1="430" x2="618" y2="430" stroke="#6D28D9" stroke-width="2" marker-end="url(#arrowSlate)"/>
+      <line x1="875" y1="430" x2="908" y2="430" stroke="#047857" stroke-width="2" marker-end="url(#arrowGreen)"/>
+      <line x1="457" y1="368" x2="457" y2="284" stroke="#6D28D9" stroke-width="1.8" marker-end="url(#arrowSlate)"/>
+      <line x1="1035" y1="368" x2="1035" y2="284" stroke="#047857" stroke-width="1.8" marker-end="url(#arrowGreen)"/>
+    `,
+  },
+  {
     id: 'fig05_use_case',
-    title: 'Figure 2.4: FortiX UML Use Case Diagram',
-    subtitle: 'Actors, System Boundary, Core Use Cases, and <<include>> / <<extend>> Dependencies',
+    title: 'Figure 2.5: FortiX UML Use Case Diagram',
+    subtitle: 'Actors, System Boundary, Core Use Cases, and <<include>> Dependencies',
     width: 1180,
     height: 680,
     mermaid: `flowchart LR
@@ -481,8 +564,8 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
   DEV --> UC4(["Configure Route, Scoped API Key & Policy"])
   DEV --> UC5(["Execute Chaos / Rate-Limit Experiment"])
   DEV --> UC6(["Inspect Verification Verdict & Export PDF"])
-  DEV --> UC7(["Manage Active Sessions & Verify Phone"])
-  ADM["Actor: Platform Admin (ADMIN)"] --> UC8(["Manage User Roles & Replay DLQ Jobs"])
+  DEV --> UC7(["Manage Sessions, Phone & Guided Tutorials"])
+  ADM["Actor: Platform Admin (ADMIN)"] --> UC8(["Manage User Roles, Tutorials & DLQ"])
   CLI["Actor: External API Consumer"] --> UC9(["Invoke Protected Gateway Endpoint"])`,
     svgBody: `
       <!-- System Boundary -->
@@ -504,14 +587,14 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <line x1="95" y1="400" x2="75" y2="428" stroke="#1D4ED8" stroke-width="2"/>
       <line x1="95" y1="400" x2="115" y2="428" stroke="#1D4ED8" stroke-width="2"/>
       <text x="95" y="448" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">API Operator</text>
-      <text x="95" y="464" text-anchor="middle" font-size="11" fill="#475569">(DEVELOPER)</text>
+      <text x="95" y="464" text-anchor="middle" font-size="11" fill="#475569">(DEVELOPER / VIEWER)</text>
 
       <circle cx="95" cy="545" r="16" fill="#F5F3FF" stroke="#6D28D9" stroke-width="2"/>
       <line x1="95" y1="561" x2="95" y2="595" stroke="#6D28D9" stroke-width="2"/>
       <line x1="70" y1="575" x2="120" y2="575" stroke="#6D28D9" stroke-width="2"/>
       <line x1="95" y1="595" x2="75" y2="620" stroke="#6D28D9" stroke-width="2"/>
       <line x1="95" y1="595" x2="115" y2="620" stroke="#6D28D9" stroke-width="2"/>
-      <text x="95" y="640" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">Platform Admin</text>
+      <text x="95" y="640" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">Platform Admin (ADMIN)</text>
 
       <!-- Right Actors -->
       <circle cx="1075" cy="220" r="16" fill="#F0FDF4" stroke="#15803D" stroke-width="2"/>
@@ -529,63 +612,67 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
       <text x="1075" y="567" text-anchor="middle" font-weight="700" font-size="12" fill="#0F172A">BullMQ Worker</text>
 
       <!-- Use Case Ellipses -->
-      <ellipse cx="445" cy="105" rx="145" ry="28" fill="#FFFFFF" stroke="#1D4ED8" stroke-width="1.8"/>
-      <text x="445" y="109" text-anchor="middle" font-weight="600" font-size="11.5" fill="#0F172A">UC-01: Register &amp; Sign In (Remember Me)</text>
+      <ellipse cx="445" cy="100" rx="145" ry="26" fill="#FFFFFF" stroke="#1D4ED8" stroke-width="1.8"/>
+      <text x="445" y="104" text-anchor="middle" font-weight="600" font-size="11.2" fill="#0F172A">UC-01: Register &amp; Sign In (Remember Me)</text>
 
-      <ellipse cx="445" cy="175" rx="145" ry="28" fill="#FFFFFF" stroke="#1D4ED8" stroke-width="1.8"/>
-      <text x="445" y="179" text-anchor="middle" font-weight="600" font-size="11.5" fill="#0F172A">UC-02: Reset Password via OTP</text>
+      <ellipse cx="445" cy="164" rx="145" ry="26" fill="#FFFFFF" stroke="#1D4ED8" stroke-width="1.8"/>
+      <text x="445" y="168" text-anchor="middle" font-weight="600" font-size="11.2" fill="#0F172A">UC-02: Reset Password via OTP</text>
 
-      <ellipse cx="775" cy="175" rx="125" ry="26" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="1.5" stroke-dasharray="4,2"/>
-      <text x="775" y="179" text-anchor="middle" font-size="11" fill="#1E3A8A">Verify 6-Digit OTP HMAC</text>
+      <ellipse cx="775" cy="164" rx="125" ry="25" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <text x="775" y="168" text-anchor="middle" font-size="11" fill="#1E3A8A">Verify 6-Digit OTP HMAC</text>
 
-      <ellipse cx="445" cy="255" rx="150" ry="28" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
-      <text x="445" y="259" text-anchor="middle" font-weight="600" font-size="11.5" fill="#0F172A">UC-03: Create API Studio API &amp; Seed Data</text>
+      <ellipse cx="445" cy="234" rx="150" ry="26" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
+      <text x="445" y="238" text-anchor="middle" font-weight="600" font-size="11.2" fill="#0F172A">UC-03: Create API Studio API &amp; Seed Data</text>
 
-      <ellipse cx="445" cy="330" rx="150" ry="28" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
-      <text x="445" y="334" text-anchor="middle" font-weight="600" font-size="11.5" fill="#0F172A">UC-04: Manage Routes, Keys &amp; Policies</text>
+      <ellipse cx="445" cy="302" rx="150" ry="26" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
+      <text x="445" y="306" text-anchor="middle" font-weight="600" font-size="11.2" fill="#0F172A">UC-04: Manage Routes, Keys &amp; Policies</text>
 
-      <ellipse cx="775" cy="330" rx="125" ry="26" fill="#FFFBEB" stroke="#B45309" stroke-width="1.8"/>
-      <text x="775" y="334" text-anchor="middle" font-weight="600" font-size="11" fill="#92400E">UC-09: Proxy Protected API</text>
+      <ellipse cx="775" cy="302" rx="125" ry="26" fill="#FFFBEB" stroke="#B45309" stroke-width="1.8"/>
+      <text x="775" y="306" text-anchor="middle" font-weight="600" font-size="11" fill="#92400E">UC-09: Proxy Protected API</text>
 
-      <ellipse cx="445" cy="405" rx="150" ry="28" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
-      <text x="445" y="409" text-anchor="middle" font-weight="600" font-size="11.5" fill="#0F172A">UC-05: Run Chaos / Rate-Limit Experiment</text>
+      <ellipse cx="445" cy="370" rx="150" ry="26" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
+      <text x="445" y="374" text-anchor="middle" font-weight="600" font-size="11.2" fill="#0F172A">UC-05: Run Chaos / Rate-Limit Experiment</text>
 
-      <ellipse cx="775" cy="445" rx="125" ry="28" fill="#ECFEFF" stroke="#0E7490" stroke-width="1.8"/>
-      <text x="775" y="449" text-anchor="middle" font-weight="600" font-size="11" fill="#155E75">UC-06: Verify SLA &amp; Evidence</text>
+      <ellipse cx="775" cy="420" rx="125" ry="26" fill="#ECFEFF" stroke="#0E7490" stroke-width="1.8"/>
+      <text x="775" y="424" text-anchor="middle" font-weight="600" font-size="11" fill="#155E75">UC-06: Verify SLA &amp; Evidence</text>
 
-      <ellipse cx="445" cy="485" rx="150" ry="28" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
-      <text x="445" y="489" text-anchor="middle" font-weight="600" font-size="11.5" fill="#0F172A">UC-07: Export PDF &amp; OpenAPI 3.0 Spec</text>
+      <ellipse cx="445" cy="438" rx="150" ry="26" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
+      <text x="445" y="442" text-anchor="middle" font-weight="600" font-size="11.2" fill="#0F172A">UC-07: Export PDF &amp; OpenAPI 3.0 Spec</text>
 
-      <ellipse cx="445" cy="555" rx="150" ry="26" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
-      <text x="445" y="559" text-anchor="middle" font-weight="600" font-size="11.5" fill="#0F172A">UC-08: Revoke Sessions &amp; Verify Phone</text>
+      <ellipse cx="445" cy="504" rx="150" ry="26" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
+      <text x="445" y="508" text-anchor="middle" font-weight="600" font-size="11.2" fill="#0F172A">UC-08: Revoke Sessions &amp; Verify Phone</text>
+
+      <ellipse cx="445" cy="570" rx="150" ry="25" fill="#ECFDF5" stroke="#047857" stroke-width="1.8"/>
+      <text x="445" y="574" text-anchor="middle" font-weight="600" font-size="11" fill="#065F46">UC-11: Follow Guided Video Tutorials</text>
 
       <ellipse cx="765" cy="585" rx="135" ry="26" fill="#F5F3FF" stroke="#6D28D9" stroke-width="1.8"/>
-      <text x="765" y="589" text-anchor="middle" font-weight="600" font-size="11" fill="#4C1D95">UC-10: RBAC Governance &amp; DLQ</text>
+      <text x="765" y="589" text-anchor="middle" font-weight="600" font-size="11" fill="#4C1D95">UC-10: RBAC, Catalog &amp; DLQ</text>
 
       <!-- Associations -->
-      <line x1="130" y1="135" x2="300" y2="105" stroke="#1D4ED8" stroke-width="1.6"/>
-      <line x1="130" y1="150" x2="300" y2="175" stroke="#1D4ED8" stroke-width="1.6"/>
-      <line x1="590" y1="175" x2="648" y2="175" stroke="#1D4ED8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
-      <text x="619" y="167" text-anchor="middle" font-size="9.5" fill="#1E3A8A">&lt;&lt;include&gt;&gt;</text>
+      <line x1="130" y1="135" x2="300" y2="100" stroke="#1D4ED8" stroke-width="1.6"/>
+      <line x1="130" y1="150" x2="300" y2="164" stroke="#1D4ED8" stroke-width="1.6"/>
+      <line x1="590" y1="164" x2="648" y2="164" stroke="#1D4ED8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowBlue)"/>
+      <text x="619" y="156" text-anchor="middle" font-size="9.5" fill="#1E3A8A">&lt;&lt;include&gt;&gt;</text>
 
-      <line x1="130" y1="365" x2="295" y2="255" stroke="#0F172A" stroke-width="1.5"/>
-      <line x1="130" y1="375" x2="295" y2="330" stroke="#0F172A" stroke-width="1.5"/>
-      <line x1="130" y1="385" x2="295" y2="405" stroke="#0F172A" stroke-width="1.5"/>
-      <line x1="130" y1="395" x2="295" y2="485" stroke="#0F172A" stroke-width="1.5"/>
-      <line x1="130" y1="405" x2="295" y2="555" stroke="#0F172A" stroke-width="1.5"/>
+      <line x1="130" y1="360" x2="295" y2="234" stroke="#0F172A" stroke-width="1.5"/>
+      <line x1="130" y1="370" x2="295" y2="302" stroke="#0F172A" stroke-width="1.5"/>
+      <line x1="130" y1="380" x2="295" y2="370" stroke="#0F172A" stroke-width="1.5"/>
+      <line x1="130" y1="390" x2="295" y2="438" stroke="#0F172A" stroke-width="1.5"/>
+      <line x1="130" y1="400" x2="295" y2="504" stroke="#0F172A" stroke-width="1.5"/>
+      <line x1="130" y1="410" x2="295" y2="570" stroke="#047857" stroke-width="1.5"/>
 
-      <line x1="595" y1="412" x2="650" y2="438" stroke="#0E7490" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowSlate)"/>
-      <text x="624" y="418" text-anchor="middle" font-size="9.5" fill="#155E75">&lt;&lt;include&gt;&gt;</text>
+      <line x1="595" y1="378" x2="650" y2="412" stroke="#0E7490" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowSlate)"/>
+      <text x="624" y="388" text-anchor="middle" font-size="9.5" fill="#155E75">&lt;&lt;include&gt;&gt;</text>
 
       <line x1="130" y1="585" x2="630" y2="585" stroke="#6D28D9" stroke-width="1.6"/>
-      <line x1="1040" y1="255" x2="900" y2="325" stroke="#15803D" stroke-width="1.8"/>
-      <line x1="1040" y1="490" x2="900" y2="450" stroke="#B45309" stroke-width="1.8"/>
-      <line x1="1040" y1="478" x2="880" y2="348" stroke="#B45309" stroke-width="1.5" stroke-dasharray="4,2"/>
+      <line x1="1040" y1="255" x2="900" y2="300" stroke="#15803D" stroke-width="1.8"/>
+      <line x1="1040" y1="490" x2="900" y2="425" stroke="#B45309" stroke-width="1.8"/>
+      <line x1="1040" y1="478" x2="880" y2="322" stroke="#B45309" stroke-width="1.5" stroke-dasharray="4,2"/>
     `,
   },
   {
     id: 'fig06_class_diagram',
-    title: 'Figure 2.5: FortiX Core Domain & Service UML Class Diagram',
+    title: 'Figure 2.6: FortiX Core Domain & Service UML Class Diagram',
     subtitle: 'Principal TypeScript Domain Entities, Security Enforcement Services, and Multiplicities',
     width: 1200,
     height: 700,
@@ -596,7 +683,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
   class Project { +string id +string orgId +string name +string environment }
   class ApiRoute { +string id +string projectId +string pathPattern +string targetUrl }
   class SecurityPolicy { +string id +int rateLimitRpm +boolean enableWaf +boolean enableSsrf }
-  class GatewayPipeline { +authenticateKey() +inspectThreats() +checkRateLimit() +injectFault() }
+  class GatewayPipeline { +validateGatewayApiKey() +detectThreats() +checkRateLimit() +injectFault() }
   class StudioTargetHandler { +handleStudioUpstreamRequest() +validateStudioRecordPayload() }
   class VerificationEngine { +verifyPolicy() +flushTelemetryBarrier() +evaluateExperimentVerification() }
   User "1" --> "*" Project
@@ -614,7 +701,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
         <text x="12" y="50" font-family="monospace" font-size="10.5" fill="#0F172A">+ id: UUID (PK)</text>
         <text x="12" y="66" font-family="monospace" font-size="10.5" fill="#0F172A">+ email: string (UNIQUE)</text>
         <text x="12" y="82" font-family="monospace" font-size="10.5" fill="#0F172A">+ phoneE164: string? (UNIQUE)</text>
-        <text x="12" y="98" font-family="monospace" font-size="10.5" fill="#0F172A">+ phoneVerified: boolean</text>
+        <text x="12" y="98" font-family="monospace" font-size="10.5" fill="#0F172A">+ role: ADMIN|DEVELOPER|VIEWER</text>
         <line x1="0" y1="108" x2="260" y2="108" stroke="#CBD5E1"/>
         <text x="12" y="126" font-family="monospace" font-size="10.5" fill="#1E40AF">+ rotateRefreshSession()</text>
         <text x="12" y="142" font-family="monospace" font-size="10.5" fill="#1E40AF">+ revokeUserSessionFamily()</text>
@@ -641,16 +728,16 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
         <text x="12" y="66" font-family="monospace" font-size="10.5" fill="#0F172A">+ orgId: UUID (FK)</text>
         <text x="12" y="82" font-family="monospace" font-size="10.5" fill="#0F172A">+ environment: string</text>
         <line x1="0" y1="96" x2="250" y2="96" stroke="#CBD5E1"/>
-        <text x="12" y="116" font-family="monospace" font-size="10.5" fill="#0F172A">+ verifyProjectAccess()</text>
+        <text x="12" y="116" font-family="monospace" font-size="10.5" fill="#0F172A">+ requireProjectAccess()</text>
         <text x="12" y="134" font-family="monospace" font-size="10.5" fill="#0F172A">+ withTenantContext(rls)</text>
       </g>
 
       <g transform="translate(920,30)">
         <rect width="245" height="150" rx="6" fill="#FFFFFF" stroke="#047857" stroke-width="2"/>
         <rect width="245" height="30" rx="6" fill="#047857"/>
-        <text x="122" y="20" text-anchor="middle" font-weight="700" font-size="12.5" fill="#FFFFFF">StudioApi &amp; Resource</text>
+        <text x="122" y="20" text-anchor="middle" font-weight="700" font-size="12.5" fill="#FFFFFF">StudioApi &amp; Learning</text>
         <text x="12" y="50" font-family="monospace" font-size="10.5" fill="#0F172A">+ id: UUID (PK)</text>
-        <text x="12" y="66" font-family="monospace" font-size="10.5" fill="#0F172A">+ basePath: string (/api/store)</text>
+        <text x="12" y="66" font-family="monospace" font-size="10.5" fill="#0F172A">+ basePath: /api/store</text>
         <text x="12" y="82" font-family="monospace" font-size="10.5" fill="#0F172A">+ fields: StudioFieldDef[]</text>
         <line x1="0" y1="96" x2="245" y2="96" stroke="#CBD5E1"/>
         <text x="12" y="116" font-family="monospace" font-size="10.5" fill="#065F46">+ handleStudioUpstreamReq()</text>
@@ -668,7 +755,7 @@ const DIAGRAM_SPECS: DiagramSpec[] = [
         <text x="12" y="98" font-family="monospace" font-size="10.5" fill="#0F172A">+ expiresAt / revokedAt: Date?</text>
         <line x1="0" y1="110" x2="260" y2="110" stroke="#CBD5E1"/>
         <text x="12" y="128" font-family="monospace" font-size="10.5" fill="#92400E">+ invalidateApiKeyCache()</text>
-        <text x="12" y="145" font-family="monospace" font-size="10.5" fill="#92400E">+ publishKeyRevocation()</text>
+        <text x="12" y="145" font-family="monospace" font-size="10.5" fill="#92400E">+ publishApiKeyInvalidation()</text>
       </g>
 
       <g transform="translate(345,250)">
@@ -749,7 +836,6 @@ function buildSequenceSvg(
 
   const parts: string[] = [];
 
-  // Lifelines & headers
   actors.forEach((actor, idx) => {
     const cx = Math.round(marginX + idx * stepX);
     parts.push(
@@ -776,10 +862,10 @@ function buildSequenceSvg(
         `<path d="M ${x1} ${y - 6} L ${x1 + 42} ${y - 6} L ${x1 + 42} ${y + 12} L ${x1 + 4} ${y + 12}" fill="none" stroke="${color}" stroke-width="1.8" marker-end="${marker}"/>`
       );
       parts.push(
-        `<rect x="${x1 + 48}" y="${y - 14}" width="290" height="22" rx="4" fill="#EFF6FF"/>`
+        `<rect x="${x1 + 48}" y="${y - 14}" width="315" height="22" rx="4" fill="#EFF6FF"/>`
       );
       parts.push(
-        `<text x="${x1 + 54}" y="${y + 1}" font-size="10.8" font-weight="600" fill="#1E3A8A">${m.label}</text>`
+        `<text x="${x1 + 54}" y="${y + 1}" font-size="10.5" font-weight="600" fill="#1E3A8A">${m.label}</text>`
       );
     } else {
       const midX = Math.round((x1 + x2) / 2);
@@ -787,12 +873,12 @@ function buildSequenceSvg(
       parts.push(
         `<line x1="${x1}" y1="${y}" x2="${x2 + dir}" y2="${y}" stroke="${color}" stroke-width="1.9" ${dash} marker-end="${marker}"/>`
       );
-      const labelW = Math.min(380, Math.max(150, m.label.length * 6.3 + 16));
+      const labelW = Math.min(410, Math.max(150, m.label.length * 6.2 + 16));
       parts.push(
         `<rect x="${midX - labelW / 2}" y="${y - 18}" width="${labelW}" height="15" rx="3" fill="#FFFFFF" opacity="0.95"/>`
       );
       parts.push(
-        `<text x="${midX}" y="${y - 7}" text-anchor="middle" font-size="10.8" font-weight="${m.dashed ? '500' : '600'}" fill="${m.dashed ? '#334155' : '#0F172A'}">${m.label}</text>`
+        `<text x="${midX}" y="${y - 7}" text-anchor="middle" font-size="10.6" font-weight="${m.dashed ? '500' : '600'}" fill="${m.dashed ? '#334155' : '#0F172A'}">${m.label}</text>`
       );
     }
   });
@@ -810,7 +896,7 @@ const SEQUENCE_SPECS: Array<{
 }> = [
   {
     id: 'fig07_seq_auth_recovery',
-    title: 'Figure 2.6: Sequence Diagram 1 — Registration, Remember-Me Rotation & OTP Password Recovery',
+    title: 'Figure 2.7: Sequence Diagram 1 — Registration, Remember-Me Rotation & OTP Password Recovery',
     subtitle: 'End-to-End FTX-AUTH-001 Lifecycle: HttpOnly Session + Refresh Family Rotation + HMAC-SHA256 OTP Reset',
     actors: ['Browser SPA', 'Auth Router', 'Session / OTP Svc', 'PostgreSQL', 'Mail/SMS Outbox'],
     mermaid: `sequenceDiagram
@@ -849,7 +935,7 @@ const SEQUENCE_SPECS: Array<{
   },
   {
     id: 'fig08_seq_gateway_proxy',
-    title: 'Figure 2.7: Sequence Diagram 2 — Gateway Reverse-Proxy Request & Sanitized Forwarding',
+    title: 'Figure 2.8: Sequence Diagram 2 — Gateway Reverse-Proxy Request & Sanitized Forwarding',
     subtitle: 'Full Request Hop Through /proxy/:routeId/* with Credential Stripping, Upstream Timeout, and Telemetry',
     actors: ['API Client', 'FortiX Gateway', 'SSRF & WAF Guard', 'Upstream API', 'Redis Stream'],
     mermaid: `sequenceDiagram
@@ -858,7 +944,7 @@ const SEQUENCE_SPECS: Array<{
   SSRF & WAF Guard-->>FortiX Gateway: SAFE (No SQLi/XSS/Private IP)
   FortiX Gateway->>Upstream API: Forward GET /v1/orders (Strip X-API-Key, Set Timeout)
   Upstream API-->>FortiX Gateway: 200 OK + JSON Payload
-  FortiX Gateway->>Redis Stream: XADD fortix:telemetry:stream {routeId, latencyMs, 200}
+  FortiX Gateway->>Redis Stream: XADD fortix:stream:metrics {routeId, latencyMs, 200}
   FortiX Gateway-->>API Client: 200 OK + X-Request-ID`,
     messages: [
       { from: 0, to: 1, label: '1. GET /proxy/:routeId/v1/orders (Header: X-API-Key: fx_live_...)' },
@@ -868,13 +954,13 @@ const SEQUENCE_SPECS: Array<{
       { from: 1, to: 1, label: '5. Strip X-API-Key / Bearer fx_* & attach upstream timeout' },
       { from: 1, to: 3, label: '6. Proxied HTTP Request via safeDnsLookup Agent' },
       { from: 3, to: 1, label: '7. HTTP 200 OK + Upstream JSON Response', dashed: true },
-      { from: 1, to: 4, label: '8. Non-blocking enqueueMetric() -> Redis Stream + Socket.IO' },
+      { from: 1, to: 4, label: '8. Non-blocking enqueueMetric() -> fortix:stream:metrics + Socket.IO' },
       { from: 1, to: 0, label: '9. HTTP 200 OK + X-Request-ID Header', dashed: true },
     ],
   },
   {
     id: 'fig09_seq_apikey_authz',
-    title: 'Figure 2.8: Sequence Diagram 3 — Scoped API-Key Validation & Distributed Pub/Sub Revocation',
+    title: 'Figure 2.9: Sequence Diagram 3 — Scoped API-Key Validation & Distributed Pub/Sub Revocation',
     subtitle: 'SHA-256 Digest Caching, Bcrypt Secret Verification, and Instant Multi-Replica Eviction',
     actors: ['API Client', 'Gateway Auth', 'HashedKeyCache', 'PostgreSQL', 'Redis Pub/Sub'],
     mermaid: `sequenceDiagram
@@ -884,7 +970,7 @@ const SEQUENCE_SPECS: Array<{
   Gateway Auth->>PostgreSQL: SELECT api_keys WHERE id = <id>
   Gateway Auth->>Gateway Auth: bcrypt.compare(secret, secret_hash) + check scopes/expiry
   Gateway Auth->>HashedKeyCache: Store SHA-256(rawKey) (strip secretHash)
-  Redis Pub/Sub->>HashedKeyCache: Event api_key.revoked -> Evict keyId immediately`,
+  Redis Pub/Sub->>HashedKeyCache: Channel fortix:api-key:revoked:v1 -> Evict keyId immediately`,
     messages: [
       { from: 0, to: 1, label: '1. Request with X-API-Key: fx_live_<keyId>_<secret>' },
       { from: 1, to: 2, label: '2. Lookup SHA-256(rawApiKey) in bounded HashedApiKeyCache' },
@@ -893,29 +979,29 @@ const SEQUENCE_SPECS: Array<{
       { from: 3, to: 1, label: '5. Return key metadata + bcrypt secret_hash', dashed: true },
       { from: 1, to: 1, label: '6. Verify revoked_at IS NULL, expires_at > NOW(), bcrypt.compare()' },
       { from: 1, to: 2, label: '7. Cache safe metadata under SHA-256 digest (secretHash stripped)' },
-      { from: 4, to: 2, label: '8. On Operator Revoke/Rotate: PUBLISH api_key.revoked -> Instant Evict' },
+      { from: 4, to: 2, label: '8. On Operator Revoke: PUBLISH fortix:api-key:revoked:v1 -> Evict' },
       { from: 0, to: 1, label: '9. Subsequent Request with Revoked Key' },
       { from: 1, to: 0, label: '10. Immediate HTTP 401 Unauthorized (Pre-Fault)', dashed: true },
     ],
   },
   {
     id: 'fig10_seq_ratelimit',
-    title: 'Figure 2.9: Sequence Diagram 4 — Atomic Redis Lua Token-Bucket Rate-Limit Enforcement',
+    title: 'Figure 2.10: Sequence Diagram 4 — Atomic Redis Lua Token-Bucket Rate-Limit Enforcement',
     subtitle: 'Single-Roundtrip Atomic HMGET/HMSET Refill & Decrement with Production Fail-Closed Guard',
     actors: ['API Client', 'Gateway Pipeline', 'RateLimit Service', 'PostgreSQL', 'Redis 7 (Lua)'],
     mermaid: `sequenceDiagram
   API Client->>Gateway Pipeline: Concurrent Burst Traffic (/proxy/:routeId)
-  Gateway Pipeline->>RateLimit Service: checkRateLimit(projectId, routeId, clientKey)
+  Gateway Pipeline->>RateLimit Service: checkRateLimit(routeId, identifier, rpm)
   RateLimit Service->>PostgreSQL: Fetch route security_policies.rate_limit_rpm
-  RateLimit Service->>Redis 7 (Lua): EVAL token_bucket.lua ratelimit:route:id capacity refill now
+  RateLimit Service->>Redis 7 (Lua): EVAL token_bucket.lua ratelimit:routeId:id capacity refill now
   Redis 7 (Lua)-->>RateLimit Service: {allowed: 1, remaining: 19} or {allowed: 0, remaining: 0}
   Gateway Pipeline-->>API Client: 200 OK (Allowed) or 429 Too Many Requests (Throttled)`,
     messages: [
       { from: 0, to: 1, label: '1. Burst HTTP Request (/proxy/:routeId)' },
-      { from: 1, to: 2, label: '2. checkRateLimit(projectId, routeId, keyOrIpIdentifier)' },
+      { from: 1, to: 2, label: '2. checkRateLimit(routeId, keyOrIpIdentifier, rpm)' },
       { from: 2, to: 3, label: '3. Read configured rate_limit_rpm from security_policies' },
       { from: 3, to: 2, label: '4. Return capacity & refillRate (e.g., 30 RPM)', dashed: true },
-      { from: 2, to: 4, label: '5. EVAL Lua Script (HMGET tokens/last_refill -> refill -> decrement -> HMSET)' },
+      { from: 2, to: 4, label: '5. EVAL Lua Script on ratelimit:{routeId}:{id} (HMGET -> refill -> HMSET)' },
       { from: 4, to: 2, label: '6a. Tokens > 0: Return {allowed: 1, remaining: N-1}', dashed: true },
       { from: 1, to: 0, label: '7a. Forward Request -> 200 OK', dashed: true },
       { from: 0, to: 1, label: '8. Excess Concurrent Request Exceeding Bucket Capacity' },
@@ -926,7 +1012,7 @@ const SEQUENCE_SPECS: Array<{
   },
   {
     id: 'fig11_seq_experiment_exec',
-    title: 'Figure 2.10: Sequence Diagram 5 — Experiment Creation, BullMQ Queuing & Three-Phase Execution',
+    title: 'Figure 2.11: Sequence Diagram 5 — Experiment Creation, BullMQ Queuing & Three-Phase Execution',
     subtitle: 'Controlled Execution Across BASELINE (5 Probes) → INJECTION (Active Fault) → RECOVERY (5 Probes)',
     actors: ['Operator UI', 'Experiments API', 'BullMQ Queue', 'Experiment Worker', 'FortiX Gateway'],
     mermaid: `sequenceDiagram
@@ -952,7 +1038,7 @@ const SEQUENCE_SPECS: Array<{
   },
   {
     id: 'fig12_seq_fault_cleanup',
-    title: 'Figure 2.11: Sequence Diagram 6 — Bounded Fault Injection, Operator Cancellation & Guaranteed Cleanup',
+    title: 'Figure 2.12: Sequence Diagram 6 — Bounded Fault Injection, Operator Cancellation & Guaranteed Cleanup',
     subtitle: 'Fail-Safe Termination Guaranteeing Ephemeral Key Deletion and Fault Removal Under Errors or Abort',
     actors: ['Operator UI', 'Experiments API', 'Experiment Worker', 'Gateway Cache', 'PostgreSQL'],
     mermaid: `sequenceDiagram
@@ -974,13 +1060,13 @@ const SEQUENCE_SPECS: Array<{
   },
   {
     id: 'fig13_seq_telemetry_verify',
-    title: 'Figure 2.12: Sequence Diagram 7 & 8 — Telemetry Stream Flush Barrier & Evidence Verification',
+    title: 'Figure 2.13: Sequence Diagram 7 & 8 — Telemetry Stream Flush Barrier & Evidence Verification',
     subtitle: 'Eliminating Flush Race Conditions and Vacuous Passes Before Computing Deterministic PASS/FAIL Verdicts',
     actors: ['Experiment Worker', 'Verification Engine', 'Telemetry Barrier', 'PostgreSQL', 'Artifact Store'],
     mermaid: `sequenceDiagram
   Experiment Worker->>Verification Engine: verifyPolicy(expId, policyId, windows)
   Verification Engine->>Telemetry Barrier: flushTelemetryBarrier(timeoutMs: 3000)
-  Telemetry Barrier->>PostgreSQL: Drain Redis Stream + commit pending metric_logs
+  Telemetry Barrier->>PostgreSQL: Drain fortix:stream:metrics + commit pending metric_logs
   Telemetry Barrier-->>Verification Engine: TelemetrySyncResult {synced: true}
   Verification Engine->>PostgreSQL: SELECT metric_logs WHERE experiment_id = expId
   Verification Engine->>Verification Engine: Partition BASELINE / INJECTION / RECOVERY + Evaluate SLA
@@ -989,19 +1075,19 @@ const SEQUENCE_SPECS: Array<{
     messages: [
       { from: 0, to: 1, label: '1. verifyPolicy(experimentId, policyId, {baseline, injection, recovery})' },
       { from: 1, to: 2, label: '2. Await flushTelemetryBarrier() before reading database' },
-      { from: 2, to: 3, label: '3. Flush in-memory queue & Redis Stream consumer batch to metric_logs' },
+      { from: 2, to: 3, label: '3. Drain fortix:stream:metrics consumer batch to metric_logs' },
       { from: 2, to: 1, label: '4. Barrier Complete {flushedCount, timedOut: false}', dashed: true },
       { from: 1, to: 3, label: '5. Query all persisted metric_logs for experimentId (+skew padding)' },
       { from: 3, to: 1, label: '6. Return timestamped status_code, latency_ms & request_id rows', dashed: true },
       { from: 1, to: 1, label: '7. Partition BASELINE / INJECTION / RECOVERY & check coverage >= 80%' },
       { from: 1, to: 1, label: '8. Evaluate deterministic SLA rules (reject vacuous 0-sample runs)' },
       { from: 1, to: 3, label: '9. INSERT INTO verifications (expected, observed, verdict)' },
-      { from: 1, to: 4, label: '10. Generate PDFKit Evidence Report & persist SHA-256 artifact' },
+      { from: 1, to: 4, label: '10. POST /api/control/reports/:id -> Persist SHA-256 PDF artifact' },
     ],
   },
   {
     id: 'fig14_seq_api_studio',
-    title: 'Figure 2.13: Sequence Diagram 9 — FortiX API Studio 100-Product Provisioning & Protected CRUD',
+    title: 'Figure 2.14: Sequence Diagram 9 — FortiX API Studio 100-Product Provisioning & Protected CRUD',
     subtitle: 'Zero-Backend Self-Contained API Creation, Gateway Policy Attachment, Live CRUD, and OpenAPI Export',
     actors: ['Operator UI', 'Studio Control API', 'PostgreSQL', 'FortiX Gateway', 'Studio Target Handler'],
     mermaid: `sequenceDiagram
@@ -1014,7 +1100,7 @@ const SEQUENCE_SPECS: Array<{
   FortiX Gateway-->>Operator UI: 200 OK {items: [prod_0001..], pagination}`,
     messages: [
       { from: 0, to: 1, label: '1. POST /api/control/studio/apis {name: "Store API", template: "products_100"}' },
-      { from: 1, to: 2, label: '2. INSERT api_routes (fortix-studio://<id>) + security_policies (WAF/SSRF/RPM)' },
+      { from: 1, to: 2, label: '2. INSERT api_routes (http://fortix-studio.internal/studio/<id>) + policy' },
       { from: 1, to: 2, label: '3. INSERT studio_apis, studio_resources & 100 canonical INR studio_records' },
       { from: 1, to: 2, label: '4. Mint scoped gateway API key (bcrypt secret_hash)' },
       { from: 1, to: 0, label: '5. 201 Created {apiId, routeId, issuedApiKey.rawKey, totalRecords: 100}', dashed: true },
@@ -1030,7 +1116,7 @@ const SEQUENCE_SPECS: Array<{
 const DEPLOYMENT_AND_ER_SPECS: DiagramSpec[] = [
   {
     id: 'fig15_deployment',
-    title: 'Figure 2.14: Multi-Container Production Deployment Topology',
+    title: 'Figure 2.15: Component & Multi-Container Production Deployment Topology',
     subtitle: 'Docker Compose & Cloud Runtime Architecture Separating Stateless API Replicas, Workers, PostgreSQL 15 & Redis 7',
     width: 1180,
     height: 580,
@@ -1084,13 +1170,13 @@ const DEPLOYMENT_AND_ER_SPECS: DiagramSpec[] = [
       <rect x="755" y="90" width="355" height="125" rx="10" fill="#F1F5F9" stroke="#0F172A" stroke-width="2"/>
       <text x="932" y="120" text-anchor="middle" font-weight="700" font-size="13" fill="#0F172A">&lt;&lt;database&gt;&gt; postgres:15-alpine</text>
       <text x="932" y="144" text-anchor="middle" font-size="11.5" fill="#334155">Port 5432 · Persistent Volume: pgdata</text>
-      <text x="932" y="164" text-anchor="middle" font-size="11.5" fill="#334155">Healthcheck: pg_isready · Drizzle Migrations</text>
-      <text x="932" y="186" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#1E40AF">ENABLE_POSTGRES_RLS=true (21 Tables)</text>
+      <text x="932" y="164" text-anchor="middle" font-size="11.5" fill="#334155">Healthcheck: pg_isready · 8 Drizzle Migrations</text>
+      <text x="932" y="186" text-anchor="middle" font-family="monospace" font-size="10.2" fill="#1E40AF">23 Tables + 17 Tenant/User RLS Policies</text>
 
       <rect x="755" y="245" width="355" height="125" rx="10" fill="#FFF1F2" stroke="#BE123C" stroke-width="2"/>
       <text x="932" y="275" text-anchor="middle" font-weight="700" font-size="13" fill="#881337">&lt;&lt;cache/queue&gt;&gt; redis:7-alpine</text>
       <text x="932" y="299" text-anchor="middle" font-size="11.5" fill="#334155">Port 6379 · AOF Persistence (--appendonly yes)</text>
-      <text x="932" y="319" text-anchor="middle" font-size="11.5" fill="#334155">Lua Token Bucket · Telemetry Stream · Pub/Sub</text>
+      <text x="932" y="319" text-anchor="middle" font-size="11.5" fill="#334155">Lua Token Bucket · Telemetry Streams · Pub/Sub</text>
       <text x="932" y="341" text-anchor="middle" font-family="monospace" font-size="10.5" fill="#BE123C">Volume: redisdata · Healthcheck: redis-cli ping</text>
 
       <rect x="755" y="400" width="355" height="105" rx="10" fill="#ECFDF5" stroke="#047857" stroke-width="2"/>
@@ -1108,15 +1194,17 @@ const DEPLOYMENT_AND_ER_SPECS: DiagramSpec[] = [
   },
   {
     id: 'fig16_er_diagram',
-    title: 'Figure 3.1: Entity-Relationship (ER) Diagram — Complete 21-Table PostgreSQL Schema',
+    title: 'Figure 3.1: Entity-Relationship (ER) Diagram — Complete 23-Table PostgreSQL Schema',
     subtitle: 'Primary Keys, Foreign Key Cascade Chains, Cardinalities, and Domain Groupings in src/db/schema.ts',
     width: 1240,
-    height: 820,
+    height: 920,
     mermaid: `erDiagram
   users ||--o{ auth_action_tokens : issues
   users ||--o{ refresh_tokens : maintains
   users ||--o{ recovery_challenges : verifies
   users ||--o{ organizations : owns
+  users ||--o{ learning_progress : tracks
+  learning_tutorials ||--o{ learning_progress : records
   organizations ||--o{ projects : contains
   projects ||--|| project_settings : configures
   projects ||--o{ audit_logs : records
@@ -1145,18 +1233,18 @@ const DEPLOYMENT_AND_ER_SPECS: DiagramSpec[] = [
 
       <rect x="42" y="142" width="246" height="64" rx="6" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5"/>
       <text x="165" y="160" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">2. refresh_tokens</text>
-      <text x="52" y="176" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK user_id | UQ token_hash</text>
-      <text x="52" y="191" font-family="monospace" font-size="9.5" fill="#334155">family_id, remember_me, reuse_detected_at</text>
+      <text x="50" y="176" font-family="monospace" font-size="8.6" fill="#334155">PK id | FK user_id | UQ token_hash</text>
+      <text x="50" y="191" font-family="monospace" font-size="8.6" fill="#334155">family_id, remember_me, reuse_detected_at</text>
 
       <rect x="42" y="218" width="246" height="64" rx="6" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5"/>
       <text x="165" y="236" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">3. recovery_challenges</text>
-      <text x="52" y="252" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK user_id | otp_hmac</text>
-      <text x="52" y="267" font-family="monospace" font-size="9.5" fill="#334155">channel, purpose, failed_attempts, consumed_at</text>
+      <text x="50" y="252" font-family="monospace" font-size="8.6" fill="#334155">PK id | FK user_id | otp_hmac</text>
+      <text x="50" y="267" font-family="monospace" font-size="8.6" fill="#334155">channel, purpose, failed_attempts, consumed</text>
 
       <rect x="42" y="294" width="246" height="68" rx="6" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5"/>
       <text x="165" y="312" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">4. auth_action_tokens</text>
-      <text x="52" y="328" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK user_id | UQ token_hash</text>
-      <text x="52" y="344" font-family="monospace" font-size="9.5" fill="#334155">purpose (VERIFY|RESET|RESET_AUTH), used_at</text>
+      <text x="50" y="328" font-family="monospace" font-size="8.6" fill="#334155">PK id | FK user_id | UQ token_hash</text>
+      <text x="50" y="344" font-family="monospace" font-size="8.6" fill="#334155">purpose (VERIFY|RESET|RESET_AUTH), used_at</text>
 
       <!-- Domain 2: Multi-Tenant Governance & Webhooks (6 Tables) -->
       <rect x="335" y="25" width="290" height="450" rx="10" fill="#F8FAFC" stroke="#0F172A" stroke-width="1.8"/>
@@ -1164,29 +1252,29 @@ const DEPLOYMENT_AND_ER_SPECS: DiagramSpec[] = [
 
       <rect x="352" y="62" width="256" height="56" rx="6" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.6"/>
       <text x="480" y="80" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">5. organizations</text>
-      <text x="362" y="98" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK owner_id → users.id (CASCADE)</text>
+      <text x="360" y="98" font-family="monospace" font-size="8.8" fill="#334155">PK id | FK owner_id → users.id (CASCADE)</text>
 
       <rect x="352" y="130" width="256" height="62" rx="6" fill="#FFFFFF" stroke="#0F172A" stroke-width="2"/>
       <text x="480" y="148" text-anchor="middle" font-weight="700" font-size="11.5" fill="#1E3A8A">6. projects (Tenant Anchor)</text>
-      <text x="362" y="166" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK org_id → organizations.id</text>
-      <text x="362" y="180" font-family="monospace" font-size="9.5" fill="#334155">name, environment, created_at</text>
+      <text x="360" y="166" font-family="monospace" font-size="8.8" fill="#334155">PK id | FK org_id → organizations.id</text>
+      <text x="360" y="180" font-family="monospace" font-size="8.8" fill="#334155">name, environment, created_at</text>
 
       <rect x="352" y="204" width="256" height="58" rx="6" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5"/>
       <text x="480" y="222" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">7. project_settings (1:1)</text>
-      <text x="362" y="238" font-family="monospace" font-size="9.5" fill="#334155">PK id | UQ FK project_id | version</text>
-      <text x="362" y="252" font-family="monospace" font-size="9.5" fill="#334155">gateway/security/rateLimit/exp JSONB</text>
+      <text x="360" y="238" font-family="monospace" font-size="8.8" fill="#334155">PK id | UQ FK project_id | version</text>
+      <text x="360" y="252" font-family="monospace" font-size="8.8" fill="#334155">gateway/security/rateLimit/exp JSONB</text>
 
       <rect x="352" y="274" width="256" height="56" rx="6" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5"/>
       <text x="480" y="292" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">8. audit_logs</text>
-      <text x="362" y="309" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK project_id, user_id | diff JSONB</text>
+      <text x="360" y="309" font-family="monospace" font-size="8.8" fill="#334155">PK id | FK project_id, user_id | diff JSONB</text>
 
       <rect x="352" y="342" width="256" height="56" rx="6" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5"/>
       <text x="480" y="360" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">9. webhooks</text>
-      <text x="362" y="377" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK project_id | url, secret, events</text>
+      <text x="360" y="377" font-family="monospace" font-size="8.8" fill="#334155">PK id | FK project_id | url, secret, events</text>
 
       <rect x="352" y="408" width="256" height="56" rx="6" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5"/>
       <text x="480" y="426" text-anchor="middle" font-weight="700" font-size="11" fill="#0F172A">10. webhook_deliveries</text>
-      <text x="362" y="443" font-family="monospace" font-size="9.5" fill="#334155">PK id | FK webhook_id, project_id | signature</text>
+      <text x="360" y="443" font-family="monospace" font-size="8.8" fill="#334155">PK id | FK webhook_id, project_id | sig</text>
 
       <!-- Domain 3: Gateway, Telemetry & Verification (8 Tables) -->
       <rect x="655" y="25" width="560" height="450" rx="10" fill="#FFFBEB" stroke="#B45309" stroke-width="1.8"/>
@@ -1233,26 +1321,42 @@ const DEPLOYMENT_AND_ER_SPECS: DiagramSpec[] = [
       <text x="955" y="376" font-family="monospace" font-size="9.5" fill="#334155">profile, timeline, deterministic_verdict</text>
 
       <!-- Domain 4: FortiX API Studio (3 Tables) -->
-      <rect x="25" y="510" width="1190" height="165" rx="10" fill="#ECFDF5" stroke="#047857" stroke-width="1.8"/>
-      <text x="620" y="535" text-anchor="middle" font-weight="800" font-size="12.5" fill="#065F46">FORTIX API STUDIO — SELF-CONTAINED API PLAYGROUND DOMAIN (3 TABLES)</text>
+      <rect x="25" y="500" width="1190" height="148" rx="10" fill="#ECFDF5" stroke="#047857" stroke-width="1.8"/>
+      <text x="620" y="523" text-anchor="middle" font-weight="800" font-size="12.5" fill="#065F46">FORTIX API STUDIO — SELF-CONTAINED API PLAYGROUND DOMAIN (3 TABLES)</text>
 
-      <rect x="50" y="555" width="350" height="96" rx="6" fill="#FFFFFF" stroke="#047857" stroke-width="1.8"/>
-      <text x="225" y="576" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">19. studio_apis</text>
-      <text x="64" y="596" font-family="monospace" font-size="9.8" fill="#334155">PK id | FK project_id (CASCADE)</text>
-      <text x="64" y="613" font-family="monospace" font-size="9.8" fill="#334155">FK route_id → api_routes.id (SET NULL)</text>
-      <text x="64" y="630" font-family="monospace" font-size="9.8" fill="#065F46">UQ(project_id, base_path, version)</text>
+      <rect x="50" y="538" width="350" height="92" rx="6" fill="#FFFFFF" stroke="#047857" stroke-width="1.8"/>
+      <text x="225" y="558" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">19. studio_apis</text>
+      <text x="64" y="577" font-family="monospace" font-size="9.6" fill="#334155">PK id | FK project_id (CASCADE)</text>
+      <text x="64" y="593" font-family="monospace" font-size="9.6" fill="#334155">FK route_id → api_routes.id (SET NULL)</text>
+      <text x="64" y="610" font-family="monospace" font-size="9.6" fill="#065F46">UQ(project_id, base_path, version)</text>
 
-      <rect x="445" y="555" width="350" height="96" rx="6" fill="#FFFFFF" stroke="#047857" stroke-width="1.8"/>
-      <text x="620" y="576" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">20. studio_resources</text>
-      <text x="459" y="596" font-family="monospace" font-size="9.8" fill="#334155">PK id | FK api_id → studio_apis.id (CASCADE)</text>
-      <text x="459" y="613" font-family="monospace" font-size="9.8" fill="#334155">FK project_id | name, slug, fields JSONB</text>
-      <text x="459" y="630" font-family="monospace" font-size="9.8" fill="#065F46">UQ(api_id, slug)</text>
+      <rect x="445" y="538" width="350" height="92" rx="6" fill="#FFFFFF" stroke="#047857" stroke-width="1.8"/>
+      <text x="620" y="558" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">20. studio_resources</text>
+      <text x="459" y="577" font-family="monospace" font-size="9.6" fill="#334155">PK id | FK api_id → studio_apis.id (CASCADE)</text>
+      <text x="459" y="593" font-family="monospace" font-size="9.6" fill="#334155">FK project_id | name, slug, fields JSONB</text>
+      <text x="459" y="610" font-family="monospace" font-size="9.6" fill="#065F46">UQ(api_id, slug)</text>
 
-      <rect x="840" y="555" width="350" height="96" rx="6" fill="#FFFFFF" stroke="#047857" stroke-width="1.8"/>
-      <text x="1015" y="576" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">21. studio_records</text>
-      <text x="854" y="596" font-family="monospace" font-size="9.8" fill="#334155">PK id | FK resource_id, api_id, project_id</text>
-      <text x="854" y="613" font-family="monospace" font-size="9.8" fill="#334155">record_id (prod_0001..), data JSONB, version</text>
-      <text x="854" y="630" font-family="monospace" font-size="9.8" fill="#065F46">UQ(resource_id, record_id)</text>
+      <rect x="840" y="538" width="350" height="92" rx="6" fill="#FFFFFF" stroke="#047857" stroke-width="1.8"/>
+      <text x="1015" y="558" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">21. studio_records</text>
+      <text x="854" y="577" font-family="monospace" font-size="9.6" fill="#334155">PK id | FK resource_id, api_id, project_id</text>
+      <text x="854" y="593" font-family="monospace" font-size="9.6" fill="#334155">record_id (prod_0001..), data JSONB, version</text>
+      <text x="854" y="610" font-family="monospace" font-size="9.6" fill="#065F46">UQ(resource_id, record_id)</text>
+
+      <!-- Domain 5: In-App Video Learning Center (2 Tables) -->
+      <rect x="25" y="666" width="1190" height="140" rx="10" fill="#F5F3FF" stroke="#6D28D9" stroke-width="1.8"/>
+      <text x="620" y="689" text-anchor="middle" font-weight="800" font-size="12.5" fill="#4C1D95">IN-APP VIDEO LEARNING CENTER DOMAIN — FTX-LEARN-001 (2 TABLES)</text>
+
+      <rect x="65" y="704" width="520" height="86" rx="6" fill="#FFFFFF" stroke="#6D28D9" stroke-width="1.8"/>
+      <text x="325" y="724" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">22. learning_tutorials</text>
+      <text x="80" y="743" font-family="monospace" font-size="9.6" fill="#334155">PK id | UQ slug | module_name, lifecycle_stage, category, difficulty</text>
+      <text x="80" y="759" font-family="monospace" font-size="9.6" fill="#334155">video_provider, duration_seconds, steps JSONB, published, sort_order</text>
+      <text x="80" y="775" font-family="monospace" font-size="9.6" fill="#5B21B6">IDX(published, sort_order) · IDX(lifecycle_stage, sort_order)</text>
+
+      <rect x="655" y="704" width="520" height="86" rx="6" fill="#FFFFFF" stroke="#6D28D9" stroke-width="1.8"/>
+      <text x="915" y="724" text-anchor="middle" font-weight="700" font-size="11.5" fill="#0F172A">23. learning_progress</text>
+      <text x="670" y="743" font-family="monospace" font-size="9.6" fill="#334155">PK id | FK user_id → users.id (CASCADE) | FK tutorial_id → learning_tutorials.id</text>
+      <text x="670" y="759" font-family="monospace" font-size="9.6" fill="#334155">last_position_seconds, max_watched_seconds, completed, completed_at</text>
+      <text x="670" y="775" font-family="monospace" font-size="9.6" fill="#5B21B6">UQ(user_id, tutorial_id) · RLS User-Isolated</text>
 
       <!-- Major Inter-Domain Relationship Lines -->
       <line x1="288" y1="90" x2="350" y2="90" stroke="#1D4ED8" stroke-width="2" marker-end="url(#arrowBlue)"/>
@@ -1260,17 +1364,16 @@ const DEPLOYMENT_AND_ER_SPECS: DiagramSpec[] = [
       <line x1="608" y1="160" x2="670" y2="100" stroke="#B45309" stroke-width="2" marker-end="url(#arrowSlate)"/>
       <text x="638" y="122" text-anchor="middle" font-size="10" font-weight="700" fill="#92400E">1:N</text>
       <line x1="922" y1="271" x2="943" y2="271" stroke="#0E7490" stroke-width="2" marker-end="url(#arrowSlate)"/>
-      <line x1="400" y1="603" x2="443" y2="603" stroke="#047857" stroke-width="2" marker-end="url(#arrowGreen)"/>
-      <text x="421" y="595" text-anchor="middle" font-size="10" font-weight="700" fill="#065F46">1:N</text>
-      <line x1="795" y1="603" x2="838" y2="603" stroke="#047857" stroke-width="2" marker-end="url(#arrowGreen)"/>
-      <text x="816" y="595" text-anchor="middle" font-size="10" font-weight="700" fill="#065F46">1:N</text>
-      <path d="M 480 475 L 480 500 L 225 500 L 225 553" stroke="#047857" stroke-width="1.8" fill="none" marker-end="url(#arrowGreen)"/>
+      <line x1="400" y1="584" x2="443" y2="584" stroke="#047857" stroke-width="2" marker-end="url(#arrowGreen)"/>
+      <line x1="795" y1="584" x2="838" y2="584" stroke="#047857" stroke-width="2" marker-end="url(#arrowGreen)"/>
+      <line x1="585" y1="747" x2="653" y2="747" stroke="#6D28D9" stroke-width="2" marker-end="url(#arrowSlate)"/>
+      <text x="619" y="739" text-anchor="middle" font-size="10" font-weight="700" fill="#4C1D95">1:N</text>
 
       <!-- Legend Footer -->
-      <rect x="25" y="700" width="1190" height="85" rx="8" fill="#F8FAFC" stroke="#CBD5E1"/>
-      <text x="48" y="726" font-weight="700" font-size="12" fill="#0F172A">Relational Integrity &amp; Security Invariants Across All 21 Tables:</text>
-      <text x="48" y="748" font-size="11" fill="#334155">1. Every tenant table cascades cleanly from organizations → projects (ON DELETE CASCADE), while metric_logs.experiment_id &amp; studio_apis.route_id use ON DELETE SET NULL.</text>
-      <text x="48" y="768" font-size="11" fill="#334155">2. Zero plaintext secrets stored: password_hash (bcrypt), api_keys.secret_hash (bcrypt), token_hash (SHA-256), otp_hmac (keyed HMAC-SHA256). PostgreSQL RLS policies isolate tenant rows.</text>
+      <rect x="25" y="822" width="1190" height="78" rx="8" fill="#F8FAFC" stroke="#CBD5E1"/>
+      <text x="48" y="846" font-weight="700" font-size="12" fill="#0F172A">Relational Integrity &amp; Security Invariants Across All 23 Tables:</text>
+      <text x="48" y="866" font-size="11" fill="#334155">1. Every tenant table cascades cleanly from organizations → projects (ON DELETE CASCADE); metric_logs.experiment_id &amp; studio_apis.route_id use ON DELETE SET NULL.</text>
+      <text x="48" y="885" font-size="11" fill="#334155">2. Zero plaintext secrets stored: password_hash (bcrypt), api_keys.secret_hash (bcrypt), token_hash (SHA-256), otp_hmac (HMAC-SHA256). 17 tenant/user tables enforce PostgreSQL RLS.</text>
     `,
   },
 ];
@@ -1360,11 +1463,13 @@ async function redactSensitiveDom(page: Page): Promise<void> {
     for (const node of nodes) {
       if (!node.nodeValue) continue;
       let val = node.nodeValue;
-      // Redact any raw API keys
-      val = val.replace(/fx_(live|test)_[a-f0-9]{8,}_[a-f0-9]{16,}/gi, 'fx_$1_••••••••REDACTED••••••••');
+      // Redact any raw API keys or prefixes with secret material
+      val = val.replace(/fx_(live|test)_[a-f0-9]{8,}_[a-f0-9]{8,}/gi, 'fx_$1_••••••••REDACTED••••••••');
       // Redact any 64-char hex tokens
       val = val.replace(/\b[a-f0-9]{64}\b/gi, '[REDACTED_64_HEX_TOKEN]');
-      // Replace any test email with standard academic demo email
+      // Replace masked or unmasked test email with standard academic demo email
+      val = val.replace(/[a-zA-Z0-9._%+-]*\*+[a-zA-Z0-9._%+-]*@(fortix\.dev|fortix\.test|gmail\.com|example\.edu)/gi, 'op***@example.edu');
+      val = val.replace(/operator\.\d+@example\.edu/gi, 'operator@example.edu');
       val = val.replace(/[a-zA-Z0-9._%+-]+@(fortix\.dev|fortix\.test|gmail\.com)/gi, 'operator@example.edu');
       node.nodeValue = val;
     }
@@ -1388,7 +1493,7 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
 
   try {
-    // 1. Render all 16 UML / DFD / Architecture / ER Diagrams at 2x DPI + save .mmd sources
+    // 1. Render all 17 UML / DFD / Architecture / ER Diagrams at 2x DPI + save .mmd sources
     const allDiagrams: DiagramSpec[] = [
       ...DIAGRAM_SPECS,
       ...SEQUENCE_SPECS.map((s) => {
@@ -1407,7 +1512,7 @@ async function main() {
     ];
 
     const diagContext = await browser.newContext({
-      viewport: { width: 1280, height: 960 },
+      viewport: { width: 1280, height: 1020 },
       deviceScaleFactor: 2,
     });
     const diagPage = await diagContext.newPage();
@@ -1435,16 +1540,16 @@ async function main() {
     }
     await diagContext.close();
 
-    // 2. Capture 10 Real, Redacted Application Screenshots from Live FortiX Server
+    // 2. Capture 14 Real, Redacted Application Screenshots from Live FortiX Server
     const appContext = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       deviceScaleFactor: 1.5,
     });
     const page = await appContext.newPage();
-    const demoEmail = `report-capture-${Date.now()}@fortix.dev`;
+    const demoEmail = `operator.${Date.now()}@example.edu`;
     const demoPass = 'AcademicReport!2026';
 
-    // Register & seed realistic workspace state via real REST endpoints first so screens show genuine live telemetry!
+    // Register & seed realistic workspace state via real REST endpoints first
     await page.request.post(`${BASE_URL}/api/auth/register`, {
       data: { email: demoEmail, password: demoPass, name: 'Academic Evaluator' },
     });
@@ -1457,37 +1562,45 @@ async function main() {
     await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'scr01_login.png') });
     console.log('[Screenshot] Captured scr01_login.png');
 
-    // Screen 2: Forgot Password (/forgot-password)
-    await page.goto(`${BASE_URL}/forgot-password`, { waitUntil: 'networkidle' });
-    await page.getByLabel('Email address or phone number').fill(demoEmail);
+    // Screen 2: Register Mode (/login -> Create an account)
+    await page.getByRole('button', { name: 'Create an account' }).click();
+    await page.getByLabel('Email address').fill('operator@example.edu');
     await redactSensitiveDom(page);
-    await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'scr02_forgot_password.png') });
-    console.log('[Screenshot] Captured scr02_forgot_password.png');
+    await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'scr02_register.png') });
+    console.log('[Screenshot] Captured scr02_register.png');
 
-    // Trigger real forgot-password transition to /verify-reset and redact dev OTP
+    // Screen 3: Forgot Password (/forgot-password)
+    await page.goto(`${BASE_URL}/forgot-password`, { waitUntil: 'networkidle' });
+    await page.getByLabel('Email address or phone number').fill('operator@example.edu');
+    await redactSensitiveDom(page);
+    await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'scr03_forgot_password.png') });
+    console.log('[Screenshot] Captured scr03_forgot_password.png');
+
+    // Screen 4: Trigger real forgot-password transition to /verify-reset with redacted devOtpCode in response
+    await page.route('**/api/auth/forgot-password', async (route) => {
+      const response = await route.fetch();
+      const json = await response.json();
+      if (json && typeof json === 'object') {
+        json.devOtpCode = '••••••';
+        json.destinationMasked = 'op***@example.edu';
+      }
+      await route.fulfill({ response, json });
+    });
     await page.getByLabel('Email address or phone number').fill(demoEmail);
     await page.getByRole('button', { name: 'Continue' }).click();
     await page.waitForURL('**/verify-reset');
-    await page.evaluate(() => {
-      // Mask any visible 6-digit OTP code in local dev outbox banner prior to screenshot
-      document.querySelectorAll('span').forEach((el) => {
-        if (/^\d{6}$/.test((el.textContent || '').trim())) {
-          el.textContent = '••••••';
-        }
-      });
-    });
+    await page.unroute('**/api/auth/forgot-password');
     await redactSensitiveDom(page);
-    await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'scr03_verify_otp.png') });
-    console.log('[Screenshot] Captured scr03_verify_otp.png');
+    await page.screenshot({ path: path.join(SCREENSHOTS_DIR, 'scr04_verify_otp.png') });
+    console.log('[Screenshot] Captured scr04_verify_otp.png');
 
-    // Sign in for real via /login UI and provision API Studio Store Products API + run a real experiment!
+    // Sign in for real via /login UI and provision API Studio Store Products API + run a real experiment
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
     await page.getByLabel('Email address or phone number').fill(demoEmail);
     await page.getByLabel('Password', { exact: true }).fill(demoPass);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await page.getByRole('button', { name: 'Sign Out' }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Sign Out' }).first().waitFor({ timeout: 15000 });
 
-    // Seed Store Products API + live traffic + experiment via authenticated API context so Dashboard, Studio, Security, Experiments & Verifications show genuine data
     const apiLoginRes = await page.request.post(`${BASE_URL}/api/auth/login`, {
       data: { identifier: demoEmail, password: demoPass },
     });
@@ -1499,7 +1612,6 @@ async function main() {
     const activeProjectId = projects[0]?.id;
 
     if (activeProjectId) {
-      // Mark operator email verified so banner doesn't clutter screenshots (while documented in validation section)
       const resendVer = await page.request.post(`${BASE_URL}/api/auth/resend-verification`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1528,7 +1640,6 @@ async function main() {
         const routeId = created.routeId;
         const rawKey = created.issuedApiKey?.rawKey;
         if (routeId && rawKey) {
-          // Send normal traffic + 1 SQLi WAF probe so Threats & Dashboard have real telemetry
           for (let i = 0; i < 6; i++) {
             await page.request.get(`${BASE_URL}/proxy/${routeId}/api/store/products?limit=10`, {
               headers: { 'x-api-key': rawKey },
@@ -1539,7 +1650,6 @@ async function main() {
             { headers: { 'x-api-key': rawKey } }
           );
 
-          // Run a fast bounded latency experiment & wait for verification
           const expRes = await page.request.post(`${BASE_URL}/api/control/experiments`, {
             headers: { Authorization: `Bearer ${token}` },
             data: {
@@ -1550,7 +1660,7 @@ async function main() {
             },
           });
           if (expRes.ok()) {
-            for (let w = 0; w < 18; w++) {
+            for (let w = 0; w < 20; w++) {
               await new Promise((r) => setTimeout(r, 400));
               const verCheck = await page.request.get(
                 `${BASE_URL}/api/control/verifications?projectId=${activeProjectId}`,
@@ -1567,19 +1677,23 @@ async function main() {
     }
 
     const authenticatedScreens: Array<{ route: string; filename: string; waitMs?: number }> = [
-      { route: '/', filename: 'scr04_dashboard.png', waitMs: 1200 },
-      { route: '/studio', filename: 'scr05_api_studio.png', waitMs: 1200 },
-      { route: '/apis', filename: 'scr06_protected_apis.png', waitMs: 900 },
-      { route: '/security', filename: 'scr07_security_policies.png', waitMs: 900 },
-      { route: '/experiments', filename: 'scr08_experiments.png', waitMs: 900 },
-      { route: '/verifications', filename: 'scr09_verifications.png', waitMs: 900 },
-      { route: '/settings?tab=account', filename: 'scr10_settings_account.png', waitMs: 1000 },
+      { route: '/', filename: 'scr05_dashboard.png', waitMs: 1300 },
+      { route: '/studio', filename: 'scr06_api_studio.png', waitMs: 1300 },
+      { route: '/apis', filename: 'scr07_protected_apis.png', waitMs: 1000 },
+      { route: '/security', filename: 'scr08_security_policies.png', waitMs: 1000 },
+      { route: '/threats', filename: 'scr09_threats.png', waitMs: 1000 },
+      { route: '/experiments', filename: 'scr10_experiments.png', waitMs: 1000 },
+      { route: '/verifications', filename: 'scr11_verifications.png', waitMs: 1000 },
+      { route: '/resilience', filename: 'scr12_resilience.png', waitMs: 1000 },
+      { route: '/topology', filename: 'scr13_topology.png', waitMs: 1000 },
+      { route: '/learning-center', filename: 'scr14_learning_center.png', waitMs: 1100 },
+      { route: '/settings?tab=account', filename: 'scr15_settings_account.png', waitMs: 1000 },
     ];
 
     for (const s of authenticatedScreens) {
       await page.goto(`${BASE_URL}${s.route}`, { waitUntil: 'domcontentloaded' });
-      await page.getByRole('button', { name: 'Sign Out' }).waitFor({ timeout: 10000 });
-      await page.waitForTimeout(s.waitMs || 1200);
+      await page.getByRole('button', { name: 'Sign Out' }).first().waitFor({ timeout: 12000 });
+      await page.waitForTimeout(s.waitMs || 1100);
       await redactSensitiveDom(page);
       await page.screenshot({ path: path.join(SCREENSHOTS_DIR, s.filename) });
       console.log(`[Screenshot] Captured ${s.filename}`);

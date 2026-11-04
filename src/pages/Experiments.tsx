@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '../components/ui/card.js';
 import { Play, XCircle, CheckCircle, Clock, ShieldAlert, Target, ShieldCheck, Zap, RotateCcw, Trash2, AlertTriangle, Layers, Activity, RefreshCw } from 'lucide-react';
 import { useProject } from '../context/ProjectContext.js';
+import { ContextualHelpLink } from '../components/learning/ContextualHelpLink.js';
 
 export default function Experiments() {
   const { currentProject } = useProject();
@@ -171,10 +172,15 @@ export default function Experiments() {
 
   return (
     <div className="space-y-6 flex flex-col h-full max-w-5xl mx-auto w-full">
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex flex-wrap justify-between items-start gap-3 mb-2">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-strong">Experiment Engine & Worker Resilience</h2>
           <p className="text-xs text-muted">Chaos fault injection, BullMQ queue durability, and Dead-Letter Queue (DLQ) automated recovery.</p>
+          <ContextualHelpLink
+            slug="creating-your-first-experiment"
+            label="Tutorial: Run your first resilience experiment"
+            className="mt-1.5"
+          />
         </div>
       </div>
 

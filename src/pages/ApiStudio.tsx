@@ -20,6 +20,7 @@ import {
 import { Card } from '../components/ui/card.js';
 import { useProject } from '../context/ProjectContext.js';
 import { fetchWithAuth, parseApiErrorResponse, trackProductEvent, getActiveProjectId } from '../lib/api.js';
+import { ContextualHelpLink } from '../components/learning/ContextualHelpLink.js';
 
 interface StudioFieldDef {
   name: string;
@@ -848,6 +849,11 @@ export default function ApiStudio() {
           <p className="text-xs text-muted mt-1 max-w-2xl">
             Create a declarative REST API, seed deterministic sample data, and exercise real FortiX Gateway authentication, WAF, rate limiting, chaos experiments, and verification evidence.
           </p>
+          <ContextualHelpLink
+            slug="creating-an-api-using-api-studio"
+            label="Tutorial: Build & test a Products API"
+            className="mt-1.5"
+          />
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <button

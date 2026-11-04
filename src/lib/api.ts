@@ -52,6 +52,20 @@ export function setCsrfToken(token?: string | null): void {
   }
 }
 
+export function clearClientCsrfCookie(): void {
+  memoryCsrfToken = null;
+  if (typeof document === 'undefined') return;
+  try {
+    document.cookie = 'fortix_csrf=; Max-Age=0; path=/';
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      document.cookie = 'fortix_csrf=; Max-Age=0; path=/; Secure; SameSite=None; Partitioned';
+      document.cookie = 'fortix_csrf=; Max-Age=0; path=/; Secure; SameSite=None';
+    }
+  } catch {
+    // Ignore restricted cookie environments
+  }
+}
+
 export function getCsrfToken(): string | undefined {
   if (memoryCsrfToken) return memoryCsrfToken;
   if (typeof document === 'undefined' || !document.cookie) return undefined;
@@ -115,11 +129,14 @@ export async function attemptSilentSessionRefresh(): Promise<boolean> {
   if (inFlightSessionRefresh) return inFlightSessionRefresh;
 
   inFlightSessionRefresh = (async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
     try {
       const csrf = getCsrfToken();
       const res = await fetch('/api/auth/refresh', {
         method: 'POST',
         credentials: 'include',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'X-Fortix-Client': 'browser',
@@ -137,6 +154,7 @@ export async function attemptSilentSessionRefresh(): Promise<boolean> {
     } catch {
       return false;
     } finally {
+      clearTimeout(timeoutId);
       inFlightSessionRefresh = null;
     }
   })();
@@ -217,7 +235,7 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
   }
 
   if (response.status === 401) {
-    memoryCsrfToken = null;
+    clearClientCsrfCookie();
     memorySessionToken = null;
     window.dispatchEvent(new CustomEvent('fortix:auth-unauthorized'));
   }

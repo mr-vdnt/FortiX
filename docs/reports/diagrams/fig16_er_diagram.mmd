@@ -3,6 +3,8 @@ erDiagram
   users ||--o{ refresh_tokens : maintains
   users ||--o{ recovery_challenges : verifies
   users ||--o{ organizations : owns
+  users ||--o{ learning_progress : tracks
+  learning_tutorials ||--o{ learning_progress : records
   organizations ||--o{ projects : contains
   projects ||--|| project_settings : configures
   projects ||--o{ audit_logs : records

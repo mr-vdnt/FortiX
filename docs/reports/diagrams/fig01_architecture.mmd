@@ -12,7 +12,7 @@ flowchart TB
     VE["Deterministic Verification Engine"]
   end
   subgraph Data["Persistence & State Tier"]
-    PG[("PostgreSQL 15 (21 Tables + RLS)")]
+    PG[("PostgreSQL 15 (23 Tables + RLS)")]
     RD[("Redis 7 (Lua Bucket, Streams, Pub/Sub, BullMQ)")]
     FS[("Artifact Store (SHA-256 PDFs)")]
   end
@@ -25,7 +25,7 @@ flowchart TB
   GW -->|2a. Internal Studio Route| ST
   GW -->|2b. External Proxy Route| UP
   ST --> PG
-  GW -->|XADD Telemetry| RD
+  GW -->|XADD fortix:stream:metrics| RD
   TW -->|XREADGROUP + Batch Insert| PG
   WK -->|3-Phase Probes| GW
   WK --> VE

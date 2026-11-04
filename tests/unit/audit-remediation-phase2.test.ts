@@ -304,8 +304,8 @@ describe('Phase 2 Audit Remediation Regressions (FX-REL-013 through FX-UX-019)',
 
   it('FX-OBS-016: unhandled API error returns safe contract and scrubs secrets, tokens, cookies, URIs, and PII from telemetry', async () => {
     const fakeJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturepart12345';
-    const fakePat = 'ghp_1234567890abcdefghijklmnopqrstuvwx';
-    const fakeFxKey = 'fx_live_99887766554433221100aabbccddeeff';
+    const fakePat = 'ghp_' + '1234567890abcdefghijklmnopqrstuvwx';
+    const fakeFxKey = 'fx_live_' + '99887766554433221100aabbccddeeff';
 
     const crashRes = await request(app)
       .post('/api/test-unhandled-crash?token=QuerySecretToken999')

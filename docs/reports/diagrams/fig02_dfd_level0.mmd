@@ -1,7 +1,7 @@
 flowchart LR
   OP["API Operator / Developer"] -->|Auth Credentials, Routes, Policies, Studio Specs, Experiments| SYS(("0.0 FortiX Platform"))
-  SYS -->|Session Cookies, Live Telemetry, Verdicts, PDF Reports, OpenAPI| OP
-  ADM["Platform Administrator"] -->|Role Governance, DLQ Replay, System Health Queries| SYS
+  SYS -->|Session Cookies, Live Telemetry, Verdicts, PDF Reports, OpenAPI, Tutorials| OP
+  ADM["Platform Administrator"] -->|Role Governance, Tutorial Catalog Mgmt, DLQ Replay| SYS
   SYS -->|Audit Logs, User Roster, Readiness Status| ADM
   CLI["External API Consumer"] -->|API Requests + X-API-Key| SYS
   SYS -->|Proxied JSON Responses / 401 / 403 / 429 / 504| CLI

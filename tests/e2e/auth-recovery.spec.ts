@@ -24,8 +24,8 @@ test.describe('FTX-AUTH-001: Browser Login, Remember Me & Multi-Step OTP Account
     await page.getByRole('button', { name: 'Create an account' }).click();
 
     // Verify workspace loads, then sign out
-    await expect(page.getByRole('button', { name: 'Sign Out' })).toBeVisible({ timeout: 15000 });
-    await page.getByRole('button', { name: 'Sign Out' }).click();
+    await expect(page.getByRole('button', { name: 'Sign Out' }).first()).toBeVisible({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Sign Out' }).first().click();
     await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
 
     // 3. Navigate to /forgot-password via link
@@ -59,7 +59,7 @@ test.describe('FTX-AUTH-001: Browser Login, Remember Me & Multi-Step OTP Account
     await page.getByLabel('Remember me').check();
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page.getByRole('button', { name: 'Sign Out' })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('button', { name: 'Sign Out' }).first()).toBeVisible({ timeout: 15000 });
 
     // 7. Security assertion: neither initial nor updated password is ever stored in browser storage
     const storageDump = await page.evaluate(() => ({

@@ -283,6 +283,7 @@ async function startServer() {
           return createViteServer({
             server: {
               middlewareMode: true,
+              allowedHosts: true as const,
               hmr: false,
               ws: false,
               watch: null,
@@ -350,11 +351,36 @@ async function startServer() {
     setupApiRoutes(runtimeRouter as any);
     setupGateway(runtimeRouter as any);
 
+    const publicLearningPath = path.join(process.cwd(), 'public', 'learning');
+    runtimeRouter.use(
+      '/learning',
+      express.static(publicLearningPath, {
+        setHeaders: (res, filePath) => {
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          if (filePath.endsWith('.vtt')) {
+            res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+          }
+        },
+      })
+    );
+
     if (vite) {
       runtimeRouter.use(vite.middlewares);
     } else {
-      runtimeRouter.use(express.static(distPath));
+      runtimeRouter.use(
+        express.static(distPath, {
+          setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.vtt')) {
+              res.setHeader('Content-Type', 'text/vtt; charset=utf-8');
+            }
+            if (filePath.endsWith('index.html')) {
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+            }
+          },
+        })
+      );
       runtimeRouter.get('*', (_req, res) => {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.sendFile(path.join(distPath, 'index.html'));
       });
     }
@@ -391,13 +417,17 @@ async function startServer() {
           .then((mod) => {
             shutdownResources.closeDemoApi = mod.closeDemoApiServer;
           })
-          .catch((err) => {
-            console.warn('[DemoApi] Demo API startup warning:', err?.message || err);
+          .catch(() => {
+            // Optional demo-api in production containers where standalone demo-api is omitted
           });
       }
       if (process.env.START_INTERNAL_WORKER !== 'false') {
         process.env.FORTIX_EMBEDDED_WORKER = 'true';
-        import('./src/worker.js')
+        const compiledWorkerPath = path.join(distPath, 'worker.cjs');
+        const loadWorker = useCompiledSpa && fs.existsSync(compiledWorkerPath)
+          ? import(compiledWorkerPath)
+          : import('./src/worker.js');
+        loadWorker
           .then((mod) => {
             shutdownResources.shutdownWorkers = mod.shutdownWorkers;
           })

@@ -13,6 +13,18 @@ interface State {
   errorEventId?: string;
 }
 
+function isDynamicModuleFetchError(error?: Error): boolean {
+  const msg = String(error?.message || '');
+  const name = String(error?.name || '');
+  return (
+    name === 'ChunkLoadError' ||
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('Unable to preload CSS')
+  );
+}
+
 export class ErrorBoundary extends React.Component<Props, State> {
   declare props: Readonly<Props>;
   declare setState: (state: Partial<State>) => void;
@@ -26,6 +38,20 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (typeof window !== 'undefined' && isDynamicModuleFetchError(error)) {
+      try {
+        const reloadKey = `fortix_chunk_reload:${window.location.pathname}`;
+        const lastReload = Number(window.sessionStorage.getItem(reloadKey) || '0');
+        if (!lastReload || Date.now() - lastReload > 15000) {
+          window.sessionStorage.setItem(reloadKey, String(Date.now()));
+          window.location.reload();
+          return;
+        }
+      } catch {
+        // Ignore sessionStorage restrictions in sandboxed iframes
+      }
+    }
+
     console.error('[ErrorBoundary] Caught UI render error:', error?.message);
     fetchWithAuth('/api/control/system/client-error', {
       method: 'POST',
@@ -45,20 +71,33 @@ export class ErrorBoundary extends React.Component<Props, State> {
       .catch(() => {});
   }
 
+  private handleRetry = () => {
+    if (typeof window !== 'undefined' && isDynamicModuleFetchError(this.state.error)) {
+      window.location.reload();
+      return;
+    }
+    this.setState({ hasError: false, error: undefined, errorEventId: undefined });
+  };
+
   public render() {
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
       }
+      const isModuleError = isDynamicModuleFetchError(this.state.error);
       return (
         <div className="flex flex-col items-center justify-center min-h-[260px] p-8 bg-surface text-base-text border border-red-500/30 rounded-2xl m-4 text-center space-y-4">
           <div className="p-3 rounded-xl bg-red-500/10 text-red-400 border border-red-500/25">
             <AlertTriangle size={24} />
           </div>
           <div className="space-y-1 max-w-md">
-            <h2 className="text-lg font-bold text-strong">View failed to render</h2>
+            <h2 className="text-lg font-bold text-strong">
+              {isModuleError ? 'Application update detected' : 'View failed to render'}
+            </h2>
             <p className="text-xs text-muted leading-relaxed">
-              {this.state.error?.message || 'An unexpected rendering exception interrupted this panel.'}
+              {isModuleError
+                ? 'A newer version of the workspace assets is available. Reload the page to continue.'
+                : this.state.error?.message || 'An unexpected rendering exception interrupted this panel.'}
             </p>
             {this.state.errorEventId && (
               <p className="text-[11px] font-mono text-muted pt-1">
@@ -70,10 +109,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <button
               type="button"
               className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-inverted rounded-lg text-xs font-semibold hover:opacity-90 transition-opacity whitespace-nowrap"
-              onClick={() => this.setState({ hasError: false, error: undefined, errorEventId: undefined })}
+              onClick={this.handleRetry}
             >
               <RotateCcw size={14} />
-              <span>Retry View</span>
+              <span>{isModuleError ? 'Reload Workspace' : 'Retry View'}</span>
             </button>
           </div>
         </div>

@@ -268,13 +268,13 @@ export function PasswordRecoveryPage({
   };
 
   return (
-    <div className="dark min-h-screen w-full flex items-center justify-center bg-[#090b10] text-zinc-100 px-4 py-12 relative overflow-hidden">
+    <div className="dark min-h-screen w-full flex items-start sm:items-center justify-center bg-[#090b10] text-zinc-100 px-4 py-6 sm:py-10 relative overflow-x-hidden overflow-y-auto">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(242,125,38,0.12),transparent_45%),radial-gradient(circle_at_80%_75%,rgba(30,64,175,0.14),transparent_50%)]"
+        className="pointer-events-none absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(242,125,38,0.12),transparent_45%),radial-gradient(circle_at_80%_75%,rgba(30,64,175,0.14),transparent_50%)]"
       />
 
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-md my-auto">
         {/* FortiX Brand Header */}
         <div className="mb-6 flex items-center justify-between">
           <Link to="/login" className="flex items-center gap-3 group">

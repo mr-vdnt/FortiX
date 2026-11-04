@@ -5,7 +5,7 @@ classDiagram
   class Project { +string id +string orgId +string name +string environment }
   class ApiRoute { +string id +string projectId +string pathPattern +string targetUrl }
   class SecurityPolicy { +string id +int rateLimitRpm +boolean enableWaf +boolean enableSsrf }
-  class GatewayPipeline { +authenticateKey() +inspectThreats() +checkRateLimit() +injectFault() }
+  class GatewayPipeline { +validateGatewayApiKey() +detectThreats() +checkRateLimit() +injectFault() }
   class StudioTargetHandler { +handleStudioUpstreamRequest() +validateStudioRecordPayload() }
   class VerificationEngine { +verifyPolicy() +flushTelemetryBarrier() +evaluateExperimentVerification() }
   User "1" --> "*" Project

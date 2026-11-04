@@ -5,4 +5,4 @@ sequenceDiagram
   Gateway Auth->>PostgreSQL: SELECT api_keys WHERE id = <id>
   Gateway Auth->>Gateway Auth: bcrypt.compare(secret, secret_hash) + check scopes/expiry
   Gateway Auth->>HashedKeyCache: Store SHA-256(rawKey) (strip secretHash)
-  Redis Pub/Sub->>HashedKeyCache: Event api_key.revoked -> Evict keyId immediately
+  Redis Pub/Sub->>HashedKeyCache: Channel fortix:api-key:revoked:v1 -> Evict keyId immediately

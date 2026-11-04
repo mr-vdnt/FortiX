@@ -1,0 +1,16 @@
+WEBVTT
+
+00:00.000 --> 00:05.000
+FortiX unifies API gateway protection with controlled resilience verification.
+
+00:05.000 --> 00:10.000
+Start on the Dashboard to confirm active workspace scope and gateway health.
+
+00:10.000 --> 00:15.000
+PROTECT: Register routes in Protected APIs or API Studio and enforce WAF, SSRF, and rate limits.
+
+00:15.000 --> 00:20.000
+BREAK & OBSERVE: Run bounded latency, HTTP 5xx, or burst experiments while capturing live telemetry.
+
+00:20.000 --> 00:25.000
+PROVE & IMPROVE: Inspect deterministic PASS, FAIL, and INCONCLUSIVE verdicts in Verifications.

@@ -1,0 +1,16 @@
+WEBVTT
+
+00:00.000 --> 00:05.000
+Open FortiX API Studio to build and test a self-contained REST API without external services.
+
+00:05.000 --> 00:10.000
+Click Create Products API (100 Records) to generate typed schemas, sample data, and a gateway route.
+
+00:10.000 --> 00:15.000
+Use the interactive Playground to send live GET, POST, PATCH, and DELETE requests through the proxy.
+
+00:15.000 --> 00:20.000
+Inspect HTTP status codes, round-trip latency, X-Request-ID, and rate-limit headers in real time.
+
+00:20.000 --> 00:25.000
+Trigger a 20x burst test or export the OpenAPI 3.1 contract, then prove controls in Verifications.

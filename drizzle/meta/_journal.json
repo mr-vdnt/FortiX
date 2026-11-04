@@ -50,6 +50,13 @@
       "when": 1793300000000,
       "tag": "0006_auth_sessions_and_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0007_learning_center",
+      "breakpoints": true
     }
   ]
 }

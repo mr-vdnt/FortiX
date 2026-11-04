@@ -306,3 +306,55 @@ export const studioRecords = pgTable('studio_records', {
     ),
   };
 });
+
+export const learningTutorials = pgTable('learning_tutorials', {
+  id: text('id').primaryKey(),
+  slug: text('slug').notNull().unique(),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  moduleName: text('module_name').notNull(),
+  lifecycleStage: text('lifecycle_stage').notNull(), // PROTECT | BREAK | OBSERVE | PROVE | IMPROVE
+  category: text('category').notNull(),
+  difficulty: text('difficulty').notNull(), // Beginner | Intermediate | Advanced
+  videoProvider: text('video_provider').default('none').notNull(), // self_hosted | https_allowlist | youtube_nocookie | none
+  videoReference: text('video_reference'),
+  videoSourceNote: text('video_source_note'),
+  thumbnailUrl: text('thumbnail_url'),
+  captionsUrl: text('captions_url'),
+  durationSeconds: integer('duration_seconds').notNull(),
+  learningObjectives: jsonb('learning_objectives').notNull(),
+  prerequisites: jsonb('prerequisites').notNull(),
+  steps: jsonb('steps').notNull(),
+  warnings: jsonb('warnings').notNull(),
+  relatedSlugs: jsonb('related_slugs').notNull(),
+  docLinks: jsonb('doc_links').notNull(),
+  featured: boolean('featured').default(false).notNull(),
+  published: boolean('published').default(true).notNull(),
+  sortOrder: integer('sort_order').default(100).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    publishedSortIdx: index('learning_tutorials_published_sort_idx').on(table.published, table.sortOrder),
+    categorySortIdx: index('learning_tutorials_category_sort_idx').on(table.category, table.sortOrder),
+    lifecycleSortIdx: index('learning_tutorials_lifecycle_idx').on(table.lifecycleStage, table.sortOrder),
+  };
+});
+
+export const learningProgress = pgTable('learning_progress', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  tutorialId: text('tutorial_id').references(() => learningTutorials.id, { onDelete: 'cascade' }).notNull(),
+  lastPositionSeconds: integer('last_position_seconds').default(0).notNull(),
+  maxWatchedSeconds: integer('max_watched_seconds').default(0).notNull(),
+  completed: boolean('completed').default(false).notNull(),
+  completedAt: timestamp('completed_at'),
+  lastWatchedAt: timestamp('last_watched_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => {
+  return {
+    userTutorialUnique: uniqueIndex('learning_progress_user_tutorial_idx').on(table.userId, table.tutorialId),
+    userWatchedIdx: index('learning_progress_user_watched_idx').on(table.userId, table.lastWatchedAt),
+  };
+});
+

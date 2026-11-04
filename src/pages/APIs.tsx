@@ -4,6 +4,7 @@ import { Card } from '../components/ui/card.js';
 import { Link, useOutletContext } from 'react-router-dom';
 import { Globe, RefreshCw, AlertCircle, KeyRound, Copy, Check } from 'lucide-react';
 import { useProject } from '../context/ProjectContext.js';
+import { ContextualHelpLink } from '../components/learning/ContextualHelpLink.js';
 
 export default function APIs() {
   const { currentProject } = useProject();
@@ -190,6 +191,11 @@ export default function APIs() {
             <p className="text-xs text-muted mt-1">
               Register authorized upstream endpoints to enforce API-key authentication, WAF rules, and SSRF protection.
             </p>
+            <ContextualHelpLink
+              slug="creating-your-first-api"
+              label="Tutorial: Create & protect your first API"
+              className="mt-1.5"
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <Link

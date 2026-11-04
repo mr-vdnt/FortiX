@@ -5,6 +5,6 @@ flowchart LR
   DEV --> UC4(["Configure Route, Scoped API Key & Policy"])
   DEV --> UC5(["Execute Chaos / Rate-Limit Experiment"])
   DEV --> UC6(["Inspect Verification Verdict & Export PDF"])
-  DEV --> UC7(["Manage Active Sessions & Verify Phone"])
-  ADM["Actor: Platform Admin (ADMIN)"] --> UC8(["Manage User Roles & Replay DLQ Jobs"])
+  DEV --> UC7(["Manage Sessions, Phone & Guided Tutorials"])
+  ADM["Actor: Platform Admin (ADMIN)"] --> UC8(["Manage User Roles, Tutorials & DLQ"])
   CLI["Actor: External API Consumer"] --> UC9(["Invoke Protected Gateway Endpoint"])

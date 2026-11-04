@@ -1,7 +1,7 @@
 sequenceDiagram
   API Client->>Gateway Pipeline: Concurrent Burst Traffic (/proxy/:routeId)
-  Gateway Pipeline->>RateLimit Service: checkRateLimit(projectId, routeId, clientKey)
+  Gateway Pipeline->>RateLimit Service: checkRateLimit(routeId, identifier, rpm)
   RateLimit Service->>PostgreSQL: Fetch route security_policies.rate_limit_rpm
-  RateLimit Service->>Redis 7 (Lua): EVAL token_bucket.lua ratelimit:route:id capacity refill now
+  RateLimit Service->>Redis 7 (Lua): EVAL token_bucket.lua ratelimit:routeId:id capacity refill now
   Redis 7 (Lua)-->>RateLimit Service: {allowed: 1, remaining: 19} or {allowed: 0, remaining: 0}
   Gateway Pipeline-->>API Client: 200 OK (Allowed) or 429 Too Many Requests (Throttled)

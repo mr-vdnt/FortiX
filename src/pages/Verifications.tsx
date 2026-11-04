@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { fetchWithAuth, parseApiErrorResponse, trackProductEvent } from '../lib/api.js';
 import { useProject } from '../context/ProjectContext.js';
 import { Card } from '../components/ui/card.js';
+import { ContextualHelpLink } from '../components/learning/ContextualHelpLink.js';
 import {
   ShieldCheck,
   CheckCircle,
@@ -258,8 +259,13 @@ export default function Verifications() {
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-strong">Autonomous Verification & Resilience Platform</h2>
             <p className="text-xs text-muted">
-              Project: <span className="font-mono text-primary font-bold">{currentProject?.name || 'Default Project'}</span> | Autonomous Execution, Real Telemetry, Deterministic Engine & AI Analysis
+              Project: <span className="font-mono text-primary font-bold">{currentProject?.name || 'Default Project'}</span> | Autonomous Execution, Real Telemetry &amp; Deterministic Verification Engine
             </p>
+            <ContextualHelpLink
+              slug="understanding-verification-results"
+              label="Tutorial: Understand PASS, FAIL & INCONCLUSIVE"
+              className="mt-1"
+            />
           </div>
         </div>
 
@@ -327,9 +333,9 @@ export default function Verifications() {
             <Sparkles size={24} />
           </div>
           <div>
-            <div className="text-[10px] uppercase font-bold tracking-wider text-muted">AI Advisor</div>
-            <div className="text-xs font-mono font-bold text-primary mt-1">Gemini 3.8 Flash</div>
-            <div className="text-[10px] text-muted">Evidence-Assisted</div>
+            <div className="text-[10px] uppercase font-bold tracking-wider text-muted">Evidence Engine</div>
+            <div className="text-xs font-mono font-bold text-primary mt-1">SHA-256 Verified</div>
+            <div className="text-[10px] text-muted">Deterministic Verdict</div>
           </div>
         </Card>
       </div>

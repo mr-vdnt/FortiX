@@ -22,6 +22,12 @@ export async function initDatabase(): Promise<void> {
   try {
     logger.info('[Database] Initializing automated database migrations...');
     await runMigrations();
+    try {
+      const { ensureLearningCatalogSeeded } = await import('../learning/catalog-seed.js');
+      await ensureLearningCatalogSeeded();
+    } catch (seedErr) {
+      logger.warn({ err: seedErr instanceof Error ? seedErr.message : String(seedErr) }, '[Learning] Catalog seed warning during startup');
+    }
     migrationStatus = 'verified';
     lastMigrationError = undefined;
     migrationsVerifiedAt = new Date().toISOString();

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Builds a standards-compliant, editable OpenXML (.docx) B.Tech IT Project Report
-from docs/reports/report-ast.json, embedding all 26 rendered PNG diagrams and
+from docs/reports/report-ast.json, embedding all 32 rendered PNG diagrams and
 redacted live UI screenshots, bordered tables, Consolas code blocks, headers,
 dynamic PAGE/NUMPAGES footers, and Heading1..Heading3 outline styles.
 Validates every XML member inside the archive before exiting.

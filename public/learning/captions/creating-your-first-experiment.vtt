@@ -1,0 +1,16 @@
+WEBVTT
+
+00:00.000 --> 00:05.000
+Open the Experiments console to test how your protected route behaves under controlled stress.
+
+00:05.000 --> 00:10.000
+Select a target gateway route and choose a fault profile such as 800ms Latency Injection.
+
+00:10.000 --> 00:15.000
+Write a falsifiable verification hypothesis describing expected degradation and recovery bounds.
+
+00:15.000 --> 00:20.000
+Review blast-radius safety parameters, check explicit operator authorization, and click Execute Chaos.
+
+00:20.000 --> 00:25.000
+Monitor worker execution status and inspect failed background jobs in the Dead-Letter Queue if needed.

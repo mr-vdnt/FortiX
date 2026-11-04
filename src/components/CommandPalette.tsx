@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Activity, Server, Shield, Play, ShieldAlert, BarChart, Settings, PanelLeft, Globe, ExternalLink, Layers } from 'lucide-react';
+import { Search, Activity, Server, Shield, Play, ShieldAlert, BarChart, Settings, PanelLeft, Globe, ExternalLink, Layers, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FORTIX_DATASET } from '../data/publicApisDataset.js';
 
@@ -32,6 +32,7 @@ export function CommandPalette({ isOpen, setIsOpen, toggleSidebar }: { isOpen: b
     { id: 'threats', title: 'Go to Threats', icon: <ShieldAlert size={16} />, onSelect: () => { navigate('/threats'); setIsOpen(false); } },
     { id: 'resilience', title: 'Go to Resilience', icon: <BarChart size={16} />, onSelect: () => { navigate('/resilience'); setIsOpen(false); } },
     { id: 'topology', title: 'Go to Topology', icon: <Activity size={16} />, onSelect: () => { navigate('/topology'); setIsOpen(false); } },
+    { id: 'learning-center', title: 'Open Learning Center (Video Tutorials & Guides)', icon: <GraduationCap size={16} />, onSelect: () => { navigate('/learning-center'); setIsOpen(false); } },
     { id: 'settings', title: 'Go to Settings', icon: <Settings size={16} />, onSelect: () => { navigate('/settings'); setIsOpen(false); } },
     { id: 'toggle-sidebar', title: 'Toggle Sidebar', icon: <PanelLeft size={16} />, onSelect: () => { toggleSidebar(); setIsOpen(false); } },
   ];

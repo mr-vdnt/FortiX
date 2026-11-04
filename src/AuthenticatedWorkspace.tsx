@@ -18,6 +18,7 @@ import {
   Layers,
   MailCheck,
   CheckCircle2,
+  GraduationCap,
 } from 'lucide-react';
 import Dashboard from './pages/Dashboard.js';
 import ApiStudio from './pages/ApiStudio.js';
@@ -30,6 +31,8 @@ import Threats from './pages/Threats.js';
 import Topology from './pages/Topology.js';
 import Settings from './pages/Settings.js';
 import Verifications from './pages/Verifications.js';
+import LearningCenter from './pages/LearningCenter.js';
+import TutorialDetail from './pages/TutorialDetail.js';
 import NotFound from './pages/NotFound.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { CommandPalette } from './components/CommandPalette.js';
@@ -253,13 +256,16 @@ function Layout({
                 {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
               </button>
               <button
-                onClick={onLogout}
+                onClick={async () => {
+                  await onLogout();
+                  navigate('/login', { replace: true });
+                }}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-elevated hover:bg-hover border border-subtle text-xs font-semibold text-muted hover:text-strong transition-colors whitespace-nowrap"
                 title="Sign Out to Login Screen"
                 aria-label="Sign Out"
               >
                 <LogOut size={15} />
-                <span className="hidden sm:inline">Sign Out</span>
+                <span>Sign Out</span>
               </button>
             </div>
           </div>
@@ -275,7 +281,7 @@ function Layout({
           )}
 
           <aside
-            className={`absolute z-50 md:relative h-full w-56 border-r border-subtle bg-surface md:bg-transparent p-4 flex flex-col gap-2 shrink-0 transition-transform duration-200 ${
+            className={`!absolute z-50 md:!relative inset-y-0 left-0 h-full w-56 border-r border-subtle bg-surface md:bg-transparent p-4 flex flex-col gap-2 shrink-0 transition-transform duration-200 ${
               isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
             }`}
           >
@@ -291,19 +297,43 @@ function Layout({
               <NavItem to="/threats" icon={<ShieldAlert size={16} />} label="Threats" active={location.pathname === '/threats'} onClick={() => setIsSidebarOpen(false)} />
               <NavItem to="/topology" icon={<Activity size={16} />} label="Topology" active={location.pathname === '/topology'} onClick={() => setIsSidebarOpen(false)} />
               <NavItem to="/verifications" icon={<CheckCircle2 size={16} />} label="Verifications" active={location.pathname === '/verifications'} onClick={() => setIsSidebarOpen(false)} />
+              <NavItem to="/learning-center" icon={<GraduationCap size={16} />} label="Learning Center" active={location.pathname.startsWith('/learning-center')} onClick={() => setIsSidebarOpen(false)} />
               <NavItem to="/settings" icon={<SettingsIcon size={16} />} label="Settings" active={location.pathname === '/settings'} onClick={() => setIsSidebarOpen(false)} />
             </nav>
-            <div className="mt-auto p-3 bg-elevated rounded-xl border border-subtle space-y-1">
-              <div className="text-[11px] text-muted font-medium">Storage Mode</div>
-              <div className="text-xs font-mono font-semibold text-strong truncate">
-                {healthStatus?.persistenceVerified
-                  ? 'Persistent Cloud'
-                  : healthStatus?.postgresStorageMode === 'persistent'
-                    ? 'Persistent DB · Mem Redis'
-                    : 'Sandbox In-Memory'}
+            <div className="mt-auto p-3 bg-elevated rounded-xl border border-subtle space-y-2">
+              <div className="space-y-0.5">
+                <div className="text-[11px] text-muted font-medium">Storage Mode</div>
+                <div className="text-xs font-mono font-semibold text-strong truncate">
+                  {healthStatus?.persistenceVerified
+                    ? 'Persistent Cloud'
+                    : healthStatus?.postgresStorageMode === 'persistent'
+                      ? 'Persistent DB · Mem Redis'
+                      : 'Sandbox In-Memory'}
+                </div>
+                <div className="text-[11px] text-muted truncate">
+                  {currentUser ? `${currentUser.role.toLowerCase()} · ${currentUser.email}` : 'FortiX Control Plane'}
+                </div>
               </div>
-              <div className="text-[11px] text-muted truncate">
-                {currentUser ? `${currentUser.role.toLowerCase()} · ${currentUser.email}` : 'FortiX Control Plane'}
+              <div className="pt-2 border-t border-subtle flex items-center justify-between gap-2 text-[11px]">
+                <Link
+                  to="/login"
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="font-semibold text-primary hover:underline truncate"
+                >
+                  Switch Account
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsSidebarOpen(false);
+                    await onLogout();
+                    navigate('/login', { replace: true });
+                  }}
+                  className="inline-flex items-center gap-1 font-semibold text-muted hover:text-strong transition-colors shrink-0"
+                >
+                  <LogOut size={12} />
+                  <span>Sign Out</span>
+                </button>
               </div>
             </div>
           </aside>
@@ -402,6 +432,8 @@ export default function AuthenticatedWorkspace({
             <Route path="threats" element={<Threats />} />
             <Route path="topology" element={<Topology />} />
             <Route path="verifications" element={<Verifications />} />
+            <Route path="learning-center" element={<LearningCenter />} />
+            <Route path="learning-center/:tutorialSlug" element={<TutorialDetail />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<NotFound isAuthenticated={true} />} />
           </Route>

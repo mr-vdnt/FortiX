@@ -1,0 +1,16 @@
+WEBVTT
+
+00:00.000 --> 00:05.000
+Open Resilience and Verifications to evaluate security and fault tolerance using real telemetry.
+
+00:05.000 --> 00:10.000
+FortiX flushes telemetry buffers and compares baseline, fault-injection, and recovery windows.
+
+00:10.000 --> 00:15.000
+PASS means observed requests proved every threshold; FAIL means a policy or latency breach occurred.
+
+00:15.000 --> 00:20.000
+INCONCLUSIVE prevents vacuous passes when zero or insufficient traffic traversed the route.
+
+00:20.000 --> 00:25.000
+Export JSON or PDF verification evidence reports once remediation checks pass deterministically.

@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Gauge } from '../components/ui/Gauge.js';
+import { ContextualHelpLink } from '../components/learning/ContextualHelpLink.js';
 
 function normalizeUiVerdict(raw?: string | null): 'PASS' | 'FAIL' | 'INCONCLUSIVE' {
   const upper = String(raw || '').trim().toUpperCase();
@@ -121,6 +122,11 @@ export default function Resilience() {
           <p className="text-xs text-muted">
             Authoritative resilience telemetry, latency degradation analysis, and objective verification.
           </p>
+          <ContextualHelpLink
+            slug="understanding-telemetry"
+            label="Tutorial: Understand live telemetry & metrics"
+            className="mt-1.5"
+          />
         </div>
         <div className="flex items-center gap-3">
           <button

@@ -41,8 +41,12 @@ dist-ssr
 dump.rdb
 *.rdb
 
-# Ephemeral chat attachments
+# Ephemeral chat & platform directories
 public/assets/aistudio/
+.aistudio/
+playwright-report/
+.cache/
+docs/reports/.pdf-preview/
 
 # Test output traces (keep verified Vitest summary artifact)
 test-results/*

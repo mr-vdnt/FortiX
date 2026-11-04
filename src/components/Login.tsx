@@ -172,16 +172,16 @@ export function Login({
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#090b10] text-zinc-100 px-4 py-12 relative overflow-hidden">
+    <div className="min-h-screen w-full flex items-start lg:items-center justify-center bg-[#090b10] text-zinc-100 px-4 py-6 sm:py-8 lg:py-10 relative overflow-x-hidden overflow-y-auto">
       {/* Subtle Night Mode ambient radial backdrop */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(242,125,38,0.14),transparent_45%),radial-gradient(circle_at_80%_75%,rgba(30,64,175,0.16),transparent_50%)]"
+        className="pointer-events-none absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(242,125,38,0.14),transparent_45%),radial-gradient(circle_at_80%_75%,rgba(30,64,175,0.16),transparent_50%)]"
       />
 
-      <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-        {/* Left Column: Product Identity & Security Guarantees */}
-        <div className="lg:col-span-6 space-y-6">
+      <div className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center my-auto">
+        {/* Left Column on Desktop / Below Auth Card on Compact Viewports: Product Identity & Security Guarantees */}
+        <div className="order-2 lg:order-1 lg:col-span-6 space-y-6">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary text-zinc-950 font-bold text-lg shadow-lg">
               FX
@@ -197,7 +197,7 @@ export function Login({
           </div>
 
           <div className="space-y-3 max-w-xl">
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white leading-tight">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white leading-tight">
               Protect upstream APIs and verify resilience with stored evidence.
             </h1>
             <div className="text-sm sm:text-base text-zinc-300 leading-relaxed">
@@ -227,10 +227,10 @@ export function Login({
           </div>
         </div>
 
-        {/* Right Column: Solid Night Mode Auth Card */}
-        <div className="lg:col-span-6 flex justify-center lg:justify-end">
+        {/* Right Column on Desktop / First Above-the-Fold on Compact Viewports: Solid Night Mode Auth Card */}
+        <div className="order-1 lg:order-2 lg:col-span-6 flex justify-center lg:justify-end">
           <div
-            className={`w-full max-w-md rounded-2xl bg-[#131622] border border-white/15 shadow-2xl p-6 sm:p-8 ${
+            className={`w-full max-w-md rounded-2xl bg-[#131622] border border-white/15 shadow-2xl p-5 sm:p-7 ${
               isShaking ? 'animate-shake' : ''
             }`}
           >

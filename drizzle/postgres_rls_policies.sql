@@ -342,3 +342,16 @@ CREATE POLICY "fortix_recovery_challenges_user_isolation" ON "recovery_challenge
     OR "user_id" = current_setting('app.current_user_id', true)
   );
 
+ALTER TABLE "learning_progress" ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "fortix_learning_progress_user_isolation" ON "learning_progress";
+CREATE POLICY "fortix_learning_progress_user_isolation" ON "learning_progress"
+  USING (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  )
+  WITH CHECK (
+    COALESCE(current_setting('app.current_user_id', true), '') = ''
+    OR "user_id" = current_setting('app.current_user_id', true)
+  );
+
+

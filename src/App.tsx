@@ -7,6 +7,7 @@ import { PrivacyPolicyPage, TermsOfUsePage } from './pages/LegalPages.js';
 import {
   getCsrfToken,
   setCsrfToken,
+  clearClientCsrfCookie,
   getMemorySessionToken,
   setMemorySessionToken,
   attemptSilentSessionRefresh,
@@ -16,7 +17,22 @@ import {
   clearActiveProjectId,
 } from './lib/api.js';
 
-const AuthenticatedWorkspace = React.lazy(() => import('./AuthenticatedWorkspace.js'));
+import AuthenticatedWorkspace from './AuthenticatedWorkspace.js';
+
+const EXPLICIT_AUTH_OR_PUBLIC_PATHS = new Set([
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/verify-reset',
+  '/reset-password',
+  '/privacy',
+  '/terms',
+]);
+
+function isExplicitAuthOrPublicPath(): boolean {
+  if (typeof window === 'undefined') return false;
+  return EXPLICIT_AUTH_OR_PUBLIC_PATHS.has(window.location.pathname);
+}
 
 export interface CurrentOperatorUser {
   id: string;
@@ -86,9 +102,9 @@ function AuthPageWrapper({
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [currentUser, setCurrentUser] = React.useState<CurrentOperatorUser | null>(null);
-  // Render Login immediately on first frame when no session cookie hint exists, avoiding any blank/loading delay
+  // Render Login immediately on frame 0 when visiting an explicit auth route or when no session hint exists
   const [isLoadingAuth, setIsLoadingAuth] = React.useState(() =>
-    Boolean(getCsrfToken() || getMemorySessionToken())
+    !isExplicitAuthOrPublicPath() && Boolean(getCsrfToken() || getMemorySessionToken())
   );
   const [theme, setTheme] = React.useState(() => safeStorageGet('fortix_theme_v2') || 'dark');
   const [healthStatus, setHealthStatus] = React.useState<HealthAndStorageState | null>(null);
@@ -105,7 +121,7 @@ export default function App() {
 
   const loadAuthenticatedUser = React.useCallback(async (): Promise<boolean> => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
     try {
       const fetchMe = async () => {
         const memToken = getMemorySessionToken();
@@ -144,11 +160,13 @@ export default function App() {
         }
       }
 
+      clearClientCsrfCookie();
       setMemorySessionToken(null);
       setCurrentUser(null);
       setIsAuthenticated(false);
       return false;
     } catch {
+      clearClientCsrfCookie();
       setCurrentUser(null);
       setIsAuthenticated(false);
       return false;
@@ -161,16 +179,28 @@ export default function App() {
   React.useEffect(() => {
     safeStorageRemove('fortix_token');
 
-    void loadAuthenticatedUser();
+    let guardTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      setIsLoadingAuth(false);
+    }, 2600);
+
+    void loadAuthenticatedUser().finally(() => {
+      if (guardTimer) {
+        clearTimeout(guardTimer);
+        guardTimer = null;
+      }
+    });
 
     const handleUnauthorized = () => {
-      setCsrfToken(null);
+      clearClientCsrfCookie();
       setMemorySessionToken(null);
       setCurrentUser(null);
       setIsAuthenticated(false);
     };
     window.addEventListener('fortix:auth-unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('fortix:auth-unauthorized', handleUnauthorized);
+    return () => {
+      if (guardTimer) clearTimeout(guardTimer);
+      window.removeEventListener('fortix:auth-unauthorized', handleUnauthorized);
+    };
   }, [loadAuthenticatedUser]);
 
   React.useEffect(() => {
@@ -231,7 +261,7 @@ export default function App() {
     } catch {
       // Proceed with client session teardown even on network interruption
     } finally {
-      setCsrfToken(null);
+      clearClientCsrfCookie();
       setMemorySessionToken(null);
       clearActiveProjectId();
       safeStorageRemove('fortix_token');
@@ -242,8 +272,26 @@ export default function App() {
 
   if (isLoadingAuth) {
     return (
-      <div className="flex min-h-screen w-full items-center justify-center bg-[#090b10] text-zinc-400 font-sans text-sm">
-        Restoring FortiX session...
+      <div className="dark flex flex-col min-h-screen w-full items-center justify-center gap-4 bg-[#090b10] text-zinc-300 font-sans px-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary text-zinc-950 font-bold text-sm">
+            FX
+          </div>
+          <span className="text-sm text-zinc-300">Restoring FortiX session...</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            clearClientCsrfCookie();
+            setIsLoadingAuth(false);
+            if (typeof window !== 'undefined') {
+              window.history.replaceState(null, '', '/login');
+            }
+          }}
+          className="text-xs font-semibold text-primary hover:underline"
+        >
+          Go directly to Sign in
+        </button>
       </div>
     );
   }
@@ -314,22 +362,14 @@ export default function App() {
           <Route
             path="/*"
             element={
-              <React.Suspense
-                fallback={
-                  <div className="flex min-h-screen w-full items-center justify-center bg-[#090b10] text-zinc-400 font-sans text-sm">
-                    Loading FortiX Control Plane...
-                  </div>
-                }
-              >
-                <AuthenticatedWorkspace
-                  healthStatus={healthStatus}
-                  currentUser={currentUser}
-                  onUserVerified={() => void loadAuthenticatedUser()}
-                  theme={theme}
-                  setTheme={setTheme}
-                  onLogout={handleLogout}
-                />
-              </React.Suspense>
+              <AuthenticatedWorkspace
+                healthStatus={healthStatus}
+                currentUser={currentUser}
+                onUserVerified={() => void loadAuthenticatedUser()}
+                theme={theme}
+                setTheme={setTheme}
+                onLogout={handleLogout}
+              />
             }
           />
         )}

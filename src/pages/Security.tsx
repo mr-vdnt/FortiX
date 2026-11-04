@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth, getActiveProjectId } from '../lib/api.js';
 import { useProject } from '../context/ProjectContext.js';
+import { ContextualHelpLink } from '../components/learning/ContextualHelpLink.js';
 
 interface RouteItem {
   id: string;
@@ -354,6 +355,11 @@ export default function Security() {
               {currentProject?.name || 'active workspace'}
             </span>.
           </p>
+          <ContextualHelpLink
+            slug="configuring-security-policies"
+            label="Tutorial: Configure WAF, SSRF & rate limits"
+            className="mt-1.5"
+          />
         </div>
 
         <div className="flex items-center gap-3 shrink-0">

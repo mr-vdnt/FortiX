@@ -153,8 +153,8 @@
   box-shadow: var(--shadow-glass-elevated);
 }
 
-/* Subtle highlights for physical depth */
-.bg-surface, .bg-elevated, .bg-card {
+/* Subtle highlights for physical depth (zero-specificity :where so absolute/fixed utilities win) */
+:where(.bg-surface, .bg-elevated, .bg-card) {
   position: relative;
 }
 .bg-surface::before, .bg-elevated::before, .dark .bg-card::before {

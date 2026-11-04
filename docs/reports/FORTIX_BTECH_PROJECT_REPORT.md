@@ -33,11 +33,11 @@ Finally, we acknowledge the maintainers of the open-source ecosystems—Node.js,
 
 Modern cloud-native and microservice applications expose core business logic and sensitive multi-tenant data through HTTP Application Programming Interfaces (APIs). Organizations routinely configure defensive controls—such as API-key authentication, rate limiting, Web Application Firewall (WAF) filters, Server-Side Request Forgery (SSRF) guards, and upstream timeouts—under the assumption that configuration alone guarantees runtime protection. In practice, concurrency race conditions in rate limiters, middleware ordering defects, upstream dependency latency spikes, and cross-tenant authorization oversights frequently invalidate those assumptions under real traffic.
 
-FortiX is an integrated API Security and Resilience Verification Platform built around a closed-loop engineering lifecycle: PROTECT → BREAK → OBSERVE → PROVE → IMPROVE. Rather than treating gateway protection, fault injection, and compliance reporting as disconnected tools, FortiX unifies (1) an HTTP reverse-proxy enforcement plane (/proxy/:routeId/*) implementing SHA-256/bcrypt scoped API-key validation, SSRF/DNS-rebinding defenses, URI-decoded SQLi/XSS/traversal WAF inspection, and atomic Redis Lua token-bucket rate limiting; (2) FortiX API Studio, a self-contained zero-backend API builder seeded with a canonical 100-record e-commerce Products dataset and OpenAPI 3.0.3 export; (3) an asynchronous BullMQ experiment engine that executes bounded latency, HTTP 5xx, timeout, and rate-limit burst workloads across three distinct observation windows (BASELINE, INJECTION, and RECOVERY); and (4) a deterministic Verification Engine synchronized via a telemetry flush barrier that produces non-vacuous PASS, FAIL, or INCONCLUSIVE verdicts backed by SHA-256 integrity-hashed PDF compliance reports.
+FortiX is an integrated API Security and Resilience Verification Platform built around a closed-loop engineering lifecycle: PROTECT → BREAK → OBSERVE → PROVE → IMPROVE. Rather than treating gateway protection, fault injection, and compliance reporting as disconnected tools, FortiX unifies (1) an HTTP reverse-proxy enforcement plane (/proxy/:routeId/*) implementing SHA-256/bcrypt scoped API-key validation, SSRF/DNS-rebinding defenses, multi-decoded SQLi/XSS/traversal WAF inspection, and atomic Redis Lua token-bucket rate limiting; (2) FortiX API Studio, a self-contained zero-backend API builder seeded with a canonical 100-record e-commerce Products dataset and OpenAPI 3.0.3 export; (3) an asynchronous BullMQ experiment engine that executes bounded latency, HTTP 5xx, timeout, and rate-limit burst workloads across three distinct observation windows (BASELINE, INJECTION, and RECOVERY); (4) a deterministic Verification Engine synchronized via a telemetry flush barrier that produces non-vacuous PASS, FAIL, or INCONCLUSIVE verdicts backed by SHA-256 integrity-hashed PDF compliance reports; and (5) an integrated In-App Video Learning Center (FTX-LEARN-001) guiding operators across the complete verification workflow.
 
-The platform is implemented in TypeScript 5.8 on Node.js 22 (Express 4.21 backend, React 19 + Vite 6.2 control-plane SPA) backed by a normalized 21-table PostgreSQL 15 relational schema managed with Drizzle ORM 0.45 and hardened with PostgreSQL Row-Level Security (RLS) policies, alongside Redis 7 for Lua rate-limit state, Redis Streams telemetry ingestion, multi-replica key-revocation Pub/Sub, and BullMQ job queues. Operator authentication (FTX-AUTH-001) provides HttpOnly session cookies, rotating Remember-Me refresh token families with reuse detection, double-submit CSRF protection, and multi-step 6-digit HMAC-SHA256 OTP account recovery.
+The platform is implemented in TypeScript 5.8 on Node.js 22 (Express 4.21 backend, React 19 + Vite 6.2 control-plane SPA) backed by a normalized 23-table PostgreSQL 15 relational schema managed with Drizzle ORM 0.45 and hardened with PostgreSQL Row-Level Security (RLS) policies on 17 tenant-owned and user-owned tables, alongside Redis 7 for Lua rate-limit state, Redis Streams telemetry ingestion (fortix:stream:metrics and fortix:stream:security), multi-replica key-revocation Pub/Sub (fortix:api-key:revoked:v1), and BullMQ job queues. Operator authentication (FTX-AUTH-001) provides HttpOnly session cookies, rotating Remember-Me refresh token families with reuse detection, double-submit CSRF protection, and multi-step 6-digit HMAC-SHA256 OTP account recovery.
 
-Empirical validation across the repository confirms 34 passing Vitest unit and integration test suites (261/261 passing assertions) and 12 passing Playwright end-to-end and security browser/API specifications, demonstrating deterministic enforcement and verifiable evidence generation.
+Empirical validation across the repository confirms 35 passing Vitest unit and integration test suites (269/269 passing assertions) and 13 passing Playwright end-to-end and security browser/API specifications (46.3s), demonstrating deterministic enforcement and verifiable evidence generation.
 
 **Keywords:** API Security Gateway, Resilience Engineering, Controlled Fault Injection, Atomic Token-Bucket Rate Limiting, Deterministic Verification Engine, Multi-Tenant Isolation, OTP Account Recovery, OpenAPI 3.0
 
@@ -51,7 +51,7 @@ Empirical validation across the repository confirms 34 passing Vitest unit and i
 | **CRUD** | Create, Read, Update, Delete | Generated REST resource operations in FortiX API Studio |
 | **CSPRNG** | Cryptographically Secure Pseudo-Random Number Generator | Node.js crypto.randomInt / randomBytes used for OTPs and tokens |
 | **CSRF** | Cross-Site Request Forgery | Mitigated via double-submit cookie (fortix_csrf + X-CSRF-Token) on cookie mutations |
-| **DDL** | Data Definition Language | SQL schema definitions and Drizzle ORM migrations (0000–0006) |
+| **DDL** | Data Definition Language | SQL schema definitions and Drizzle ORM migrations (0000–0007) |
 | **DFD** | Data Flow Diagram | Structured Level 0, Level 1, and Level 2 data movement models |
 | **DLQ** | Dead-Letter Queue | Failed asynchronous BullMQ experiment and webhook jobs retained for inspection |
 | **HMAC** | Hash-based Message Authentication Code | Keyed SHA-256 verification for recovery OTPs and outbound webhook signatures |
@@ -60,14 +60,14 @@ Empirical validation across the repository confirms 34 passing Vitest unit and i
 | **ORM** | Object-Relational Mapping | Drizzle ORM type-safe SQL builder over PostgreSQL 15 |
 | **OTP** | One-Time Password | Time-limited 6-digit verification code for password reset and phone enrollment |
 | **P50 / P95 / P99** | 50th, 95th, and 99th Latency Percentiles | Statistical response-time distributions computed from gateway telemetry |
-| **RBAC** | Role-Based Access Control | ADMIN, OPERATOR, DEVELOPER, and VIEWER authorization model |
+| **RBAC** | Role-Based Access Control | ADMIN, DEVELOPER, and VIEWER authorization model enforced in control plane |
 | **RLS** | Row-Level Security | PostgreSQL engine-enforced tenant isolation via app.current_user_id |
 | **RPM** | Requests Per Minute | Configured token-bucket rate-limit threshold per protected route |
 | **SLA** | Service-Level Agreement / Policy Contract | Expected security and resilience thresholds verified by the Verification Engine |
 | **SQLi** | SQL Injection | Malicious query payload pattern inspected and blocked by gateway WAF rules |
 | **SSRF** | Server-Side Request Forgery | Blocked private/loopback/metadata IP targets and DNS-rebinding attacks |
 | **TTL** | Time To Live | Automatic key expiration in Redis token buckets, caches, and OTP challenges |
-| **UML** | Unified Modeling Language | Use-case, class, sequence, and deployment design notation |
+| **UML** | Unified Modeling Language | Use-case, class, sequence, component, and deployment design notation |
 | **WAF** | Web Application Firewall | Gateway request inspection layer detecting SQLi, XSS, and path traversal |
 | **XSS** | Cross-Site Scripting | Malicious script payload inspected at the gateway and neutralized in React UI |
 
@@ -83,10 +83,10 @@ Engineering teams typically respond to this exposure by deploying middleware con
 
 - Authentication and Authorization Drift: Endpoints intended to require scoped API keys or tenant ownership checks frequently suffer from Broken Object Level Authorization (OWASP API1:2023), unrevoked cached credentials after key rotation, or session tokens that remain usable after password resets.
 - Non-Atomic Rate Limiting Under Concurrency: Naive read-modify-write rate counters in application memory or non-transactional caches allow concurrent request bursts to bypass configured Requests-Per-Minute (RPM) ceilings due to race conditions.
-- Server-Side Request Forgery (SSRF) and Encoded Payloads: Reverse proxies that accept user-configured upstream URLs without validating private RFC 1918 ranges, loopback interfaces, cloud metadata IPs (169.254.169.254), and DNS-rebinding resolutions expose internal infrastructure, while single-pass string filters miss URL-encoded SQL injection (SQLi) and Cross-Site Scripting (XSS) vectors.
-- Unverified Resilience and SilentCascading Failures: Upstream microservices inevitably experience latency spikes, HTTP 502/503 errors, or hung TCP sockets. Without controlled fault injection and post-fault recovery measurement, operators cannot know whether gateway timeouts isolate the failure or whether downstream pools remain wedged.
+- Server-Side Request Forgery (SSRF) and Encoded Payloads: Reverse proxies that accept user-configured upstream URLs without validating private RFC 1918 ranges, loopback interfaces, cloud metadata IPs (169.254.169.254), and DNS-rebinding resolutions expose internal infrastructure, while single-pass string filters miss multi-encoded SQL injection (SQLi) and Cross-Site Scripting (XSS) vectors.
+- Unverified Resilience and Silent Cascading Failures: Upstream microservices inevitably experience latency spikes, HTTP 502/503 errors, or hung TCP sockets. Without controlled fault injection and post-fault recovery measurement, operators cannot know whether gateway timeouts isolate the failure or whether downstream pools remain wedged.
 - Telemetry Flush Races and Vacuous Verification: Even when teams run ad-hoc load scripts, asynchronous metric pipelines often lag behind verification queries—causing automated checks to evaluate zero rows or incomplete samples and emit misleading "green" pass statuses.
-- Onboarding Friction in Security Tooling: Evaluating an API security gateway traditionally requires deploying a separate external microservice first, creating friction during development, security testing, and academic evaluation.
+- Onboarding Friction in Security Tooling: Evaluating an API security gateway traditionally requires deploying a separate external microservice first and reading external documentation, creating friction during development, security testing, and academic evaluation.
 
 > **Core Engineering Distinction Addressed by FortiX:** Configuring a control declares intent; testing sends synthetic stimuli; observing records runtime telemetry; proving evaluates complete, synchronized baseline, fault-injection, and recovery observations against explicit SLA rules to produce tamper-evident PASS, FAIL, or INCONCLUSIVE evidence.
 
@@ -94,7 +94,7 @@ Engineering teams typically respond to this exposure by deploying middleware con
 
 Problem Statement: Organizations operating HTTP APIs lack a unified, self-contained engineering platform capable of enforcing multi-layered gateway protections, executing bounded fault-injection and rate-limit experiments against authorized routes, synchronizing asynchronous telemetry without race conditions, and deterministically proving whether security and resilience policies hold across baseline, active-fault, and post-fault recovery windows.
 
-Proposed System (FortiX): FortiX is an integrated API Security and Resilience Verification Platform structured around five tightly coupled stages—PROTECT, BREAK, OBSERVE, PROVE, and IMPROVE—augmented by FortiX API Studio so operators can create realistic data-backed REST APIs inside the platform itself and immediately subject them to gateway enforcement and verification.
+Proposed System (FortiX): FortiX is an integrated API Security and Resilience Verification Platform structured around five tightly coupled stages—PROTECT, BREAK, OBSERVE, PROVE, and IMPROVE—augmented by FortiX API Studio (so operators can create realistic data-backed REST APIs inside the platform itself) and an integrated In-App Video Learning Center (FTX-LEARN-001) guiding operators step-by-step.
 
 **Table 1.1: Comparison Between Disconnected Conventional Workflows and FortiX**
 
@@ -107,18 +107,18 @@ Proposed System (FortiX): FortiX is an integrated API Security and Resilience Ve
 | Verification Determinism | Manual log inspection or naive assertions that can pass vacuously when telemetry queues have not flushed. | Awaits flushTelemetryBarrier(), partitions BASELINE / INJECTION / RECOVERY windows, enforces >=80% sample coverage, and emits PASS / FAIL / INCONCLUSIVE. |
 | Audit & Compliance Evidence | Screenshots of terminal logs without cryptographic integrity or structured SLA comparison. | Generates structured JSONB verdicts and server-side PDFKit compliance reports stamped with SHA-256 content digests. |
 
-Important Positioning Note: FortiX is engineered as a focused verification-first API security gateway and resilience testbed for academic defense, security engineering validation, and small-to-medium service environments. It does not claim to replace hyperscale commercial CDN edge networks, kernel-level DDoS scrubbers, or full OWASP Core Rule Set enterprise appliances.
+Important Positioning Note: FortiX is engineered as a focused verification-first API security gateway and resilience testbed for academic defense, security engineering validation, and small-to-medium service environments. It does not claim to replace hyperscale commercial CDN edge networks, kernel-level L3/L4 DDoS scrubbers, or full OWASP Core Rule Set enterprise appliances.
 
 ### 1.1.2 Objectives, Scope Governance, Assumptions, and Out-of-Scope Boundaries
 
-1. Enforce layered pre-upstream API protection (scoped API keys, SSRF/DNS-rebinding guards, SQLi/XSS/path-traversal WAF inspection, and atomic Redis Lua rate limiting) with sub-millisecond in-process fast paths.
+1. Enforce layered pre-upstream API protection (scoped API keys, SSRF/DNS-rebinding guards, multi-decoded SQLi/XSS/path-traversal WAF inspection, and atomic Redis Lua rate limiting) with sub-millisecond in-process fast paths.
 2. Provide hardened operator authentication (FTX-AUTH-001) supporting email or verified E.164 phone sign-in, Remember-Me refresh session rotation, active session revocation, and 6-digit HMAC-SHA256 OTP password recovery.
 3. Eliminate external demo dependencies via FortiX API Studio, enabling zero-code creation of multi-resource CRUD APIs pre-populated with a deterministic 100-record Store Products catalog.
 4. Execute bounded, authorized resilience experiments (latency injection, HTTP 5xx failure injection, upstream timeout simulation, and rate-limit burst verification) via BullMQ background workers.
 5. Guarantee deterministic verification by synchronizing Redis Stream telemetry persistence prior to evaluation and enforcing baseline, injection, and recovery sample sufficiency rules.
-6. Produce downloadable SHA-256 verified PDF evidence reports and signed outbound webhook notifications.
+6. Produce downloadable SHA-256 verified PDF evidence reports, signed outbound webhook notifications, resilience posture scoring, and guided in-app video tutorials.
 
-Deliberate Scope Governance: During engineering refinement, non-essential peripheral modules were deliberately deferred so every retained subsystem could be hardened to production quality. Specifically, Kubernetes Helm orchestration, an 814-entry static external API catalog, generative AI advisory chatbots, and multi-hop service-mesh topology graphs are explicitly out of scope for the current release.
+Scope Governance & Explicit Out-of-Scope Boundaries: Every retained module in FortiX maps directly to the Protect → Break → Observe → Prove → Improve lifecycle. Capabilities outside current implementation scope—specifically Kubernetes Custom Resource Definitions (CRDs) and Helm operators, kernel-level volumetric L3/L4 DDoS mitigation, gRPC/GraphQL AST depth inspection, and hardware FIDO2/WebAuthn passkeys—are explicitly excluded from current claims and documented as future work in Section 5.2.
 
 ![Figure 1.1: FortiX Multi-Plane System Architecture (Control Plane, Gateway Enforcement Plane, Workers, Verification Engine, and Persistence Tier)](./diagrams/fig01_architecture.png)
 *Figure 1.1: FortiX Multi-Plane System Architecture (Control Plane, Gateway Enforcement Plane, Workers, Verification Engine, and Persistence Tier) (Reconstructed directly from server.ts, src/api/index.ts, src/gateway/index.ts, src/experiments/worker.ts, and src/verification/engine.ts.)*
@@ -128,19 +128,20 @@ Deliberate Scope Governance: During engineering refinement, non-essential periph
 | Capability / Module | Status | Primary Source Files | DB Tables & Redis Keys | Automated Test Evidence |
 | --- | --- | --- | --- | --- |
 | Operator Auth, Remember-Me & OTP Recovery (FTX-AUTH-001) | Implemented and verified | src/api/auth.ts, src/auth/sessions.ts, src/auth/recovery.ts, src/components/Login.tsx, src/pages/PasswordRecovery.tsx | users, refresh_tokens, recovery_challenges, auth_action_tokens | tests/unit/ftx-auth-001.test.ts, tests/e2e/auth-recovery.spec.ts |
-| Multi-Tenant RBAC, BOLA Guards & PostgreSQL RLS | Implemented and verified | src/lib/rbac.ts, src/db/index.ts, drizzle/postgres_rls_policies.sql | organizations, projects, project_settings, audit_logs | tests/security/all.spec.ts, tests/integration/tenant-isolation.test.ts |
-| Reverse-Proxy Gateway, SSRF Guard & WAF | Implemented and verified | src/gateway/index.ts, src/gateway/key-cache.ts, src/security/waf.ts, src/lib/ssrf.ts | api_routes, api_keys, security_policies, security_events | tests/security/auth.spec.ts, tests/unit/waf.test.ts, tests/unit/ssrf.test.ts |
-| Atomic Redis Lua Token-Bucket Rate Limiter | Implemented and verified | src/rate-limit/redis.ts | Redis: ratelimit:{projectId}:{routeId}:{key} | tests/unit/rate-limit.test.ts, tests/e2e/golden-demo.spec.ts |
-| FortiX API Studio & 100-Product Catalog Engine | Implemented and verified | src/api/studio.ts, src/studio/target-handler.ts, src/studio/datasets.ts, src/pages/ApiStudio.tsx | studio_apis, studio_resources, studio_records | tests/unit/api-studio.test.ts, tests/e2e/api-studio.spec.ts |
-| 3-Phase Chaos Worker & Deterministic Verification | Implemented and verified | src/experiments/worker.ts, src/verification/engine.ts, src/telemetry/index.ts | experiments, metric_logs, verifications, fortix:telemetry:stream | tests/unit/verification-defects.test.ts, tests/failure/worker.spec.ts |
-| SHA-256 PDF Evidence Reports & Signed Webhooks | Implemented and verified | src/reports/generator.ts, src/storage/index.ts, src/webhooks/dispatcher.ts | webhooks, webhook_deliveries, storage/artifacts/*.pdf | tests/reports/report.spec.ts, tests/unit/webhooks.test.ts |
+| Multi-Tenant RBAC, BOLA Guards & PostgreSQL RLS | Implemented and verified | src/middleware/auth.ts, src/middleware/entitlements.ts, src/middleware/project.ts, src/api/admin.ts, drizzle/postgres_rls_policies.sql | organizations, projects, project_settings, audit_logs (17 RLS tables) | tests/security/all.spec.ts, tests/unit/postgres-rls.test.ts |
+| Reverse-Proxy Gateway, SSRF Guard & WAF | Implemented and verified | src/gateway/index.ts, src/lib/key-invalidation.ts, src/threat-detection/index.ts, src/gateway/ssrf.ts | api_routes, api_keys, security_policies, security_events, fortix:api-key:revoked:v1 | tests/security/auth.spec.ts, tests/unit/threat-detection.test.ts, tests/unit/ssrf.test.ts |
+| Atomic Redis Lua Token-Bucket Rate Limiter | Implemented and verified | src/rate-limit/redis.ts | Redis: ratelimit:{routeId}:{identifier} | tests/unit/rate-limit.test.ts, tests/e2e/golden-demo.spec.ts |
+| FortiX API Studio & 100-Product Catalog Engine | Implemented and verified | src/api/studio.ts, src/studio/target-handler.ts, src/studio/products-dataset.ts, src/studio/openapi-generator.ts, src/pages/ApiStudio.tsx | studio_apis, studio_resources, studio_records | tests/unit/api-studio.test.ts, tests/e2e/api-studio.spec.ts |
+| 3-Phase Chaos Worker & Deterministic Verification | Implemented and verified | src/experiments/worker.ts, src/verification/engine.ts, src/lib/telemetry.ts, src/telemetry-worker.ts | experiments, metric_logs, verifications, fortix:stream:metrics | tests/unit/verification-defects.test.ts, tests/failure/worker.spec.ts |
+| SHA-256 PDF Evidence Reports & Signed Webhooks | Implemented and verified | src/api/reports.ts, src/storage/artifact-storage.ts, src/lib/webhooks.ts, src/api/webhooks.ts | webhooks, webhook_deliveries, storage/artifacts/*.pdf | tests/reports/report.spec.ts, tests/unit/webhooks.test.ts |
+| In-App Video Learning Center (FTX-LEARN-001) | Implemented and verified | src/api/learning.ts, src/learning/catalog-seed.ts, src/learning/video-validator.ts, src/pages/LearningCenter.tsx, src/pages/TutorialDetail.tsx | learning_tutorials, learning_progress | tests/unit/learning-center.test.ts, tests/e2e/learning-center.spec.ts |
 | Production SMTP / SMS External Transport | Partially implemented | src/auth/providers.ts | Env: AUTH_EMAIL_WEBHOOK_URL, AUTH_SMS_WEBHOOK_URL | Webhook HTTP 2xx verified in ftx-auth-001.test.ts; live carrier depends on env secrets |
 
 ## 1.2 Requirement Specifications (Product/System Tasks)
 
 System requirements in FortiX are partitioned into verifiable Functional Requirements (FR), Non-Functional Requirements (NFR), Hardware/Software System Requirements, Role-Based User Permissions, and formal Use-Case Specifications.
 
-**Table 1.3: Functional Requirements Specification Matrix (FR-01 to FR-16)**
+**Table 1.3: Functional Requirements Specification Matrix (FR-01 to FR-17)**
 
 | Req ID | Functional Capability | Implemented Behavior & Acceptance Rule | Primary Endpoint / Module |
 | --- | --- | --- | --- |
@@ -149,17 +150,18 @@ System requirements in FortiX are partitioned into verifiable Functional Require
 | FR-03 | Silent Refresh Rotation & Reuse Detection | Rotates refresh token within family_id; if a rotated token is replayed, revokes the entire session family and invalidates associated JWT sid claims. | POST /api/auth/refresh |
 | FR-04 | OTP Password Recovery | Issues 6-digit CSPRNG OTP stored as keyed HMAC-SHA256 (10m TTL, 60s resend cooldown, max 5 attempts), exchanges for single-use resetAuthorization, and revokes all sessions on password update. | POST /api/auth/forgot-password, /verify-reset-otp, /reset-password |
 | FR-05 | Active Session & Phone Management | Lists active refresh session families for revocation and enrolls E.164 phone numbers via 6-digit SMS OTP verification. | GET/DELETE /api/control/account/sessions, /phone/* |
-| FR-06 | Project & Route Registration | Registers protected routes mapping pathPattern to external HTTPS targets (validated against SSRF) or internal fortix-studio://<apiId> targets. | GET/POST /api/control/routes |
-| FR-07 | Scoped API-Key Lifecycle | Generates fx_live_<id>_<secret> keys, stores only bcrypt secretHash, enforces scope/expiry checks, and broadcasts instant cache eviction over Redis Pub/Sub. | POST/DELETE /api/control/keys |
-| FR-08 | Security Policy Configuration | Configures per-route rateLimitRpm, authRequired, enableWaf, enableSsrf, maxLatencySlaMs, and maxErrorRatePercent. | POST/PUT /api/control/policies |
+| FR-06 | Project & Route Registration | Registers protected routes mapping pathPattern to external HTTPS targets (validated against SSRF) or internal http://fortix-studio.internal/studio/<apiId> targets. | GET/POST /api/control/routes |
+| FR-07 | Scoped API-Key Lifecycle | Generates fx_live_<id>_<secret> keys, stores only bcrypt secretHash, enforces scope/expiry checks, and broadcasts instant cache eviction over fortix:api-key:revoked:v1. | POST/DELETE /api/control/keys |
+| FR-08 | Security Policy Configuration | Configures per-route rateLimitRpm, enableWaf, and enableSsrf toggles enforced immediately by the gateway pipeline. | POST/PUT /api/control/policies |
 | FR-09 | Gateway Proxy & Header Sanitization | Proxies /proxy/:routeId/* requests after auth, WAF, and rate-limit checks while stripping X-API-Key and fx_* bearer credentials before upstream dispatch. | ALL /proxy/:routeId/* |
 | FR-10 | Atomic Token-Bucket Rate Limiting | Enforces RPM quotas atomically in Redis via Lua script; returns HTTP 429 Too Many Requests when bucket tokens are exhausted. | src/rate-limit/redis.ts |
-| FR-11 | WAF & SSRF Threat Prevention | Blocks URI-decoded SQLi, XSS, and path traversal payloads with HTTP 403 and records structured rows in security_events. | src/security/waf.ts, src/lib/ssrf.ts |
+| FR-11 | WAF & SSRF Threat Prevention | Blocks multi-decoded SQLi, XSS, and path traversal payloads with HTTP 403 and records structured rows in security_events. | src/threat-detection/index.ts, src/gateway/ssrf.ts |
 | FR-12 | FortiX API Studio & 100-Product Seed | Creates self-contained multi-resource REST APIs, seeds 100 realistic INR e-commerce Product records, serves filtered/paginated CRUD, and exports OpenAPI 3.0.3. | POST /api/control/studio/apis |
 | FR-13 | Bounded Chaos Experiment Execution | Queues latency, error_5xx, timeout, and burst experiments in BullMQ; runs 5 BASELINE probes, active INJECTION probes (<=60s), and 5 RECOVERY probes. | POST /api/control/experiments |
-| FR-14 | Telemetry Stream & Live Socket Push | Appends gateway metrics to Redis Stream fortix:telemetry:stream, batch-flushes to metric_logs, and pushes tenant-scoped updates via Socket.IO. | src/telemetry/index.ts, src/socket.ts |
+| FR-14 | Telemetry Stream & Live Socket Push | Appends gateway metrics to Redis Streams (fortix:stream:metrics & fortix:stream:security), batch-flushes to PostgreSQL, and pushes tenant-scoped updates via Socket.IO. | src/lib/telemetry.ts, src/socket.ts |
 | FR-15 | Deterministic SLA Verification | Synchronizes via flushTelemetryBarrier(), verifies >=80% probe coverage, and computes non-vacuous PASS, FAIL, or INCONCLUSIVE verdicts. | src/verification/engine.ts |
-| FR-16 | Evidence PDF Export & Signed Webhooks | Generates PDFKit verification reports with SHA-256 digests and dispatches HMAC-SHA256 signed event payloads to registered webhooks. | GET /api/control/reports/:id/pdf |
+| FR-16 | Evidence PDF Export & Signed Webhooks | Generates PDFKit verification reports with SHA-256 digests and dispatches HMAC-SHA256 signed event payloads to registered webhooks. | POST /api/control/reports/:verificationId |
+| FR-17 | In-App Video Learning Center & Progress | Provides categorized lifecycle tutorials, validated video sources, step-by-step checklists, contextual help drawers, and per-user resume/completion persistence. | GET /api/control/learning/tutorials, PUT /progress/:id |
 
 **Table 1.4: Non-Functional Requirements (NFR) and Architectural Realization**
 
@@ -167,12 +169,12 @@ System requirements in FortiX are partitioned into verifiable Functional Require
 | --- | --- | --- |
 | Security | Zero plaintext secret storage, CSRF protection on cookie sessions, strict tenant isolation, and secret-free logs. | bcrypt (passwords & API keys), SHA-256 (refresh/action tokens), keyed HMAC-SHA256 (OTPs), double-submit CSRF, BOLA + Postgres RLS, Pino redact paths. |
 | Reliability & Fault Safety | Chaos experiments must never persist indefinitely if a worker crashes or an operator aborts execution. | Zod max duration cap (60,000 ms), explicit cancellation polling, and try/finally cleanup deleting ephemeral fx_test_* keys and invalidating caches. |
-| Availability & Fail-Closed | Distributed security state loss in production must not silently disable rate limiting. | Production mode fails closed (HTTP 503) if Redis is unreachable; development mode provides explicit bounded local fallback for offline evaluation. |
+| Availability & Fail-Closed | Distributed security state loss in production must not silently disable rate limiting. | Production mode enforces REDIS_FAILURE_BEHAVIOR=fail-closed (HTTP 503) if Redis is unreachable; local dev provides bounded in-memory fallback. |
 | Performance | Gateway authentication and policy lookup must avoid repeated bcrypt CPU cost on every request. | SHA-256 digest-indexed HashedApiKeyCache (30s TTL, max 5,000 keys) and 5s policy/route caches with event-driven invalidation. |
-| Scalability | Decouple heavy probe orchestration and telemetry disk writes from the synchronous HTTP proxy thread. | Separate API and BullMQ Worker containers (docker-compose.yml) plus Redis Streams batch insertion into PostgreSQL. |
+| Scalability | Decouple heavy probe orchestration and telemetry disk writes from the synchronous HTTP proxy thread. | Separate API and BullMQ Worker containers (docker-compose.yml) plus Redis Streams consumer-group batch insertion into PostgreSQL. |
 | Data Integrity | Prevent duplicate consumption of OTPs/reset tokens and lost updates on concurrent settings edits. | Conditional SQL UPDATE ... WHERE consumed_at IS NULL RETURNING * and optimistic concurrency version counter on project_settings. |
 | Observability | Every proxied request and security block must carry traceable correlation metadata. | UUID X-Request-ID propagation, structured JSON Pino logs, P50/P95/P99 latency aggregation, and readiness endpoint /api/health/ready. |
-| Portability | Run reproducibly in local student sandboxes without external cloud accounts as well as in Docker Compose. | Dual-mode DB layer (PostgreSQL Pool in production; deterministic pg-mem in-memory PostgreSQL with auto-migrations in sandbox/test). |
+| Portability | Run reproducibly in local student sandboxes without external cloud accounts as well as in Docker Compose. | Dual-mode DB layer (PostgreSQL Pool in production; deterministic pg-mem in-memory PostgreSQL with auto-migrations 0000–0007 in sandbox/test). |
 
 **Table 1.5: Development vs. Production System Requirements**
 
@@ -184,15 +186,16 @@ System requirements in FortiX are partitioned into verifiable Functional Require
 | State & Queue Store | Redis 7 local instance OR bounded local dev fallback when REDIS_URL is unset. | Dedicated Redis 7 (--appendonly yes) required; STRICT_PERSISTENT_DB=true enforces hard readiness checks. |
 | Client Browser | Chromium, Firefox, or Safari supporting ES2022, Fetch Credentials, and WebSocket. | Modern evergreen TLS-enabled browser enforcing Secure, HttpOnly, SameSite cookie policies. |
 
-**Table 1.6: Implemented Role-Based Access Control (RBAC) Permission Matrix (src/lib/rbac.ts)**
+**Table 1.6: Implemented Role-Based Access Control (RBAC) Permission Matrix (src/middleware/entitlements.ts & src/api/admin.ts)**
 
-| Platform Operation | ADMIN | OPERATOR | DEVELOPER | VIEWER |
-| --- | --- | --- | --- | --- |
-| View Telemetry, Routes, Verifications & Reports | Allowed | Allowed | Allowed | Allowed |
-| Create/Edit Routes, Studio APIs, Keys & Policies | Allowed | Allowed | Allowed | Denied (403) |
-| Create, Execute & Cancel Chaos Experiments | Allowed | Allowed | Allowed | Denied (403) |
-| Manage Own Account Sessions & Verified Phone | Allowed | Allowed | Allowed | Allowed |
-| Modify User Roles & Replay Dead-Letter Queue (DLQ) | Allowed | Denied (403) | Denied (403) | Denied (403) |
+| Platform Operation | ADMIN | DEVELOPER | VIEWER |
+| --- | --- | --- | --- |
+| View Telemetry, Routes, Threats, Verifications & Reports | Allowed | Allowed | Allowed |
+| Browse Video Learning Center & Track Personal Progress | Allowed | Allowed | Allowed |
+| Create/Edit Routes, Studio APIs, Keys, Policies & Webhooks | Allowed | Allowed | Denied (403) |
+| Create, Execute & Cancel Chaos Experiments / Workflows | Allowed | Allowed | Denied (403) |
+| Manage Own Account Sessions & Verified E.164 Phone | Allowed | Allowed | Allowed |
+| Modify User Roles, Author Tutorials & Replay DLQ Jobs | Allowed | Denied (403) | Denied (403) |
 
 **Table 1.7: Structured Use-Case Specifications for Core FortiX Workflows**
 
@@ -200,7 +203,7 @@ System requirements in FortiX are partitioned into verifiable Functional Require
 | --- | --- | --- | --- |
 | UC-01 | Sign In with Remember-Me Session | Unauthenticated Operator | Pre: Registered account exists. Main: Submit email or verified E.164 phone + password + Remember Me; backend verifies bcrypt hash, creates 30-day refresh_tokens family, sets HttpOnly fortix_session & fortix_refresh. Exc: Unverified phone or wrong password returns generic 401 without enumeration. Post: Authenticated workspace session established without storing password in browser. |
 | UC-02 | Recover Password via 6-Digit OTP | Unauthenticated Operator | Pre: User forgot password. Main: Submit identifier on /forgot-password -> receive masked destination & challengeId -> submit 6-digit OTP on /verify-reset -> receive single-use resetAuthorization -> submit new + confirm password on /reset-password. Exc: >5 bad OTPs locks challenge; 60s resend cooldown enforced; provider failure invalidates challenge. Post: Password updated and all existing refresh_tokens + JWT sids revoked. |
-| UC-03 | Provision 100-Product API in Studio | API Operator (DEVELOPER+) | Pre: Authenticated project selected. Main: Choose Store Products (100) template in /studio -> backend creates gateway route (fortix-studio://<id>), attaches WAF/SSRF/RPM policy, seeds 100 INR products, and mints scoped API key. Exc: Duplicate basePath or invalid field schema rejected with HTTP 400 Zod error. Post: Live CRUD endpoints immediately callable through /proxy/:routeId/*. |
+| UC-03 | Provision 100-Product API in Studio | API Operator (DEVELOPER+) | Pre: Authenticated project selected. Main: Choose Store Products (100) template in /studio -> backend creates gateway route (http://fortix-studio.internal/studio/<id>), attaches WAF/SSRF/RPM policy, seeds 100 INR products, and mints scoped API key. Exc: Duplicate basePath or invalid field schema rejected with HTTP 400 Zod error. Post: Live CRUD endpoints immediately callable through /proxy/:routeId/*. |
 | UC-04 | Proxy Request Under Policy & Rate Limit | External API Consumer | Pre: Active route and security policy exist. Main: Client sends GET/POST to /proxy/:routeId/* with X-API-Key; gateway validates key hash, checks WAF/SSRF, executes Redis Lua token bucket, dispatches upstream, and logs metric. Exc: Missing/revoked key -> 401; SQLi/XSS -> 403; exhausted tokens -> 429; hung upstream -> 504. Post: Response returned with X-Request-ID and telemetry persisted. |
 | UC-05 | Execute 3-Phase Experiment & Verify SLA | API Operator / BullMQ Worker | Pre: Target route belongs to operator project. Main: Enqueue latency/5xx/burst experiment -> worker runs 5 BASELINE probes, activates fault for INJECTION probes, runs 5 RECOVERY probes -> awaits flushTelemetryBarrier() -> Verification Engine computes verdict & PDF report. Exc: Insufficient probe coverage (<80%) yields INCONCLUSIVE rather than false PASS. Post: Immutable verification record and SHA-256 PDF stored. |
 
@@ -215,25 +218,25 @@ Every dependency documented in this section has been verified directly against p
 | Node.js | 22.x LTS | Server & Worker Runtime | Executes Express control/gateway server (server.ts) and BullMQ workers (src/worker.ts) using non-blocking I/O and native crypto. |
 | TypeScript | 5.8.2 | Language & Type System | Enforces static contracts across shared schemas, Drizzle ORM models, API DTOs, verification rules, and React 19 components. |
 | Express | 4.21.2 | HTTP Control & Proxy Server | Mounts /api/auth, /api/control, /proxy/:routeId/*, health probes, security headers, and CSRF/CORS middleware. |
-| React & Vite | 19.0 / 6.2 | Frontend SPA & Bundler | Renders operator dashboard, API Studio, policy editors, OTP recovery screens, and Recharts visualizations. |
-| PostgreSQL | 15-alpine | Primary Relational Database | Stores all 21 normalized tables with foreign-key cascades, transactional updates, and Row-Level Security (RLS) policies. |
-| Drizzle ORM | 0.45.1 | SQL Query Builder & Migrations | Defines typed schema (src/db/schema.ts) and versioned SQL migrations (drizzle/0000 through 0006) with parameterized queries. |
-| Redis (ioredis) | 7-alpine / 5.10 | Atomic State, Streams & Pub/Sub | Runs Lua token-bucket rate limiting, fortix:telemetry:stream ingestion, key-revocation Pub/Sub, and BullMQ backing store. |
-| BullMQ | 6.3.1 | Distributed Job Queue | Schedules and retries asynchronous chaos experiments and webhook deliveries with exponential backoff and DLQ retention. |
+| React & Vite | 19.0.1 / 6.2.3 | Frontend SPA & Bundler | Renders operator dashboard, API Studio, policy editors, OTP recovery screens, Learning Center, and Recharts visualizations. |
+| PostgreSQL | 15-alpine | Primary Relational Database | Stores all 23 normalized tables with foreign-key cascades, transactional updates, and Row-Level Security (RLS) policies. |
+| Drizzle ORM | 0.45.2 | SQL Query Builder & Migrations | Defines typed schema (src/db/schema.ts) and versioned SQL migrations (drizzle/0000 through 0007) with parameterized queries. |
+| Redis (ioredis) | 7-alpine / 6.0 | Atomic State, Streams & Pub/Sub | Runs Lua token-bucket rate limiting, fortix:stream:metrics ingestion, key-revocation Pub/Sub, and BullMQ backing store. |
+| BullMQ | 6.3.4 | Distributed Job Queue | Schedules and retries asynchronous chaos experiments and webhook deliveries with exponential backoff and DLQ retention. |
 | Socket.IO | 4.8.3 | Real-Time Event Transport | Streams tenant-isolated telemetry, security alerts, and experiment state transitions to authenticated browsers. |
-| Zod | 4.5.6 | Runtime Schema Validation | Validates every REST body/query payload, E.164 phone format, Studio field schema, and environment configuration. |
+| Zod | 4.5.4 | Runtime Schema Validation | Validates every REST body/query payload, E.164 phone format, Studio field schema, tutorial video URL, and env config. |
 | Pino | 10.3.1 | Structured JSON Logger | Outputs high-throughput structured logs with automatic redaction of authorization headers, cookies, OTPs, and secrets. |
 | PDFKit | 0.20.2 | Compliance Evidence Generator | Synthesizes downloadable server-side verification PDF reports hashed with SHA-256 digests. |
-| Vitest & Playwright | 5.0 / 1.63 | Automated Verification Suite | Executes 34 unit/integration test suites (261 tests) and 12 end-to-end browser/API security specifications. |
+| Vitest & Playwright | 5.0 / 1.63 | Automated Verification Suite | Executes 35 unit/integration test suites (269 tests) and 13 end-to-end browser/API security specifications. |
 | Docker & Compose | 24+ / v2 | Containerization & Orchestration | Multi-stage Alpine image running as unprivileged user fortix across api, worker, postgres, and redis services. |
 
 ### 1.3.1 Six-Dimensional Engineering Evaluation of Core Technologies
 
 - Node.js 22 & TypeScript 5.8 — (1) Intro: Event-driven JavaScript runtime paired with structural static typing. (2) Purpose: Powers HTTP reverse proxying, cryptographic hashing/HMAC, probe generation, and verification logic. (3) Why Selected: High concurrency for I/O-bound gateway proxying and single-language sharing of domain types between backend and React UI. (4) Integration: Compiles via esbuild into dist/server.cjs and dist/worker.cjs. (5) Benefits: Fast startup, native WebCrypto/Node crypto, unified codebase. (6) Limitations: Single-threaded CPU loop requires offloading bcrypt caching and running workers in a separate process.
-- Express 4.21 — (1) Intro: Minimalist HTTP routing and middleware framework. (2) Purpose: Hosts /api/auth/*, /api/control/*, and wildcard /proxy/:routeId/* pipelines. (3) Why Selected: Deterministic middleware ordering—vital for ensuring authentication and WAF execute strictly before fault injection. (4) Integration: Co-hosted on the same HTTP server as Socket.IO and http-proxy. (5) Benefits: Mature ecosystem (helmet, cookie-parser, cors). (6) Limitations: Requires explicit async error wrapping to avoid unhandled rejections.
-- React 19, Vite 6.2 & Tailwind CSS 4 — (1) Intro: Component-based declarative UI library with modern ESM build tooling. (2) Purpose: Implements Login, 3-step OTP Recovery, Command Dashboard, API Studio, Security Policies, Experiments, Verifications, and Settings. (3) Why Selected: Instant state transitions, clean hook composition, and zero-runtime CSS overhead. (4) Integration: Communicates via src/lib/api.ts with credentials: "include", X-CSRF-Token injection, and silent /api/auth/refresh retry. (5) Benefits: Responsive operator workflow and Recharts latency visualization. (6) Limitations: Client-side SPA requires strict backend authorization because browser code is untrusted.
-- PostgreSQL 15 & Drizzle ORM 0.45 — (1) Intro: ACID-compliant open-source RDBMS paired with a SQL-centric TypeScript ORM. (2) Purpose: Authoritative system of record for all 21 tables. (3) Why Selected: Native JSONB support for flexible verification evidence/Studio records, atomic UPDATE ... RETURNING for single-use tokens, and engine-level Row-Level Security (RLS). (4) Integration: Managed via src/db/index.ts with automatic pg-mem fallback for isolated unit tests. (5) Benefits: Zero SQL injection via bound parameters and transparent migration SQL files. (6) Limitations: High-frequency telemetry writes require Redis Stream batching to prevent connection pool saturation.
-- Redis 7 & BullMQ 6.3 — (1) Intro: In-memory data structure server and Redis-backed distributed job queue. (2) Purpose: Executes atomic Lua token-bucket rate limiting, buffers telemetry streams, broadcasts revoked API keys, and orchestrates multi-phase chaos jobs. (3) Why Selected: Server-side Lua scripts execute atomically without lock contention across multiple gateway replicas. (4) Integration: Connected via ioredis in src/lib/redis.ts, src/rate-limit/redis.ts, and src/experiments/worker.ts. (5) Benefits: Sub-millisecond rate-limit decisions and durable job retries with DLQ inspection. (6) Limitations: Ephemeral memory footprint requires AOF persistence (--appendonly yes) and explicit TTL hygiene.
+- Express 4.21 — (1) Intro: Minimalist HTTP routing and middleware framework. (2) Purpose: Hosts /api/auth/*, /api/control/*, and wildcard /proxy/:routeId/* pipelines. (3) Why Selected: Deterministic middleware ordering—vital for ensuring authentication and WAF execute strictly before fault injection. (4) Integration: Co-hosted on the same HTTP server as Socket.IO and http-proxy-middleware. (5) Benefits: Mature ecosystem (cookie-parser, cors, express-rate-limit). (6) Limitations: Requires explicit async error handling to avoid unhandled rejections.
+- React 19, Vite 6.2 & Tailwind CSS 4 — (1) Intro: Component-based declarative UI library with modern ESM build tooling. (2) Purpose: Implements Login, 3-step OTP Recovery, Command Dashboard, API Studio, Security Policies, Threats, Experiments, Verifications, Resilience, Topology, Learning Center, and Settings. (3) Why Selected: Instant state transitions, clean hook composition, and zero-runtime CSS overhead. (4) Integration: Communicates via src/lib/api.ts with credentials: "include", X-CSRF-Token injection, and silent /api/auth/refresh retry. (5) Benefits: Responsive operator workflow and Recharts latency visualization. (6) Limitations: Client-side SPA requires strict backend authorization because browser code is untrusted.
+- PostgreSQL 15 & Drizzle ORM 0.45 — (1) Intro: ACID-compliant open-source RDBMS paired with a SQL-centric TypeScript ORM. (2) Purpose: Authoritative system of record for all 23 tables. (3) Why Selected: Native JSONB support for flexible verification evidence/Studio records, atomic UPDATE ... RETURNING for single-use tokens, and engine-level Row-Level Security (RLS). (4) Integration: Managed via src/db/index.ts with automatic pg-mem fallback for isolated unit tests. (5) Benefits: Zero SQL injection via bound parameters and transparent migration SQL files. (6) Limitations: High-frequency telemetry writes require Redis Stream batching to prevent connection pool saturation.
+- Redis 7 & BullMQ 6.3 — (1) Intro: In-memory data structure server and Redis-backed distributed job queue. (2) Purpose: Executes atomic Lua token-bucket rate limiting, buffers telemetry streams, broadcasts revoked API keys, and orchestrates multi-phase chaos jobs. (3) Why Selected: Server-side Lua scripts execute atomically without lock contention across multiple gateway replicas. (4) Integration: Connected via ioredis in src/redis.ts, src/rate-limit/redis.ts, and src/experiments/worker.ts. (5) Benefits: Sub-millisecond rate-limit decisions and durable job retries with DLQ inspection. (6) Limitations: Ephemeral memory footprint requires AOF persistence (--appendonly yes) and explicit TTL hygiene.
 - Zod 4.5, Pino 10.3, PDFKit 0.20, Vitest 5.0 & Playwright 1.63 — (1) Intro: Validation, observability, reporting, and testing toolchain. (2) Purpose: Enforces strict DTO contracts at trust boundaries, emits redacted JSON logs, renders tamper-evident PDFs, and continuously verifies security/verification invariants. (3) Why Selected: Eliminates runtime type coercion bugs and proves end-to-end browser + proxy behavior. (4) Integration: Wired into Express routes, verification artifacts, and CI npm scripts. (5) Benefits: High defect detection (caught all four historical verification engine defects). (6) Limitations: Headless browser E2E suites require Chromium binaries in the test container.
 
 ---
@@ -247,39 +250,42 @@ To model how credentials, policy configurations, proxied API payloads, fault pro
 ![Figure 2.1: Level 0 Context Data Flow Diagram — FortiX System Boundary and External Entities (E1–E5)](./diagrams/fig02_dfd_level0.png)
 *Figure 2.1: Level 0 Context Data Flow Diagram — FortiX System Boundary and External Entities (E1–E5) (Models top-level inputs and outputs between Process 0.0 and external actors/targets.)*
 
-In the Level 0 Context Diagram (Figure 2.1), FortiX appears as a single central process (0.0) interacting with five external entities: E1 (API Operator / Developer configuring routes, Studio APIs, policies, and experiments), E2 (Platform Administrator governing RBAC roles and Dead-Letter Queues), E3 (External API Consumer sending authenticated HTTP traffic to /proxy/:routeId/*), E4 (Upstream Target API receiving sanitized requests), and E5 (Notification & Webhook Receiver accepting signed alerts and Email/SMS OTP dispatches). Databases (PostgreSQL and Redis) are internal to the FortiX boundary at Level 0 and appear explicitly at Level 1.
+In the Level 0 Context Diagram (Figure 2.1), FortiX appears as a single central process (0.0) interacting with five external entities: E1 (API Operator / Developer configuring routes, Studio APIs, policies, experiments, and learning progress), E2 (Platform Administrator governing RBAC roles, tutorial catalog entries, and Dead-Letter Queues), E3 (External API Consumer sending authenticated HTTP traffic to /proxy/:routeId/*), E4 (Upstream Target API receiving sanitized requests), and E5 (Notification & Webhook Receiver accepting signed alerts and Email/SMS OTP dispatches). Databases (PostgreSQL and Redis) are internal to the FortiX boundary at Level 0 and appear explicitly at Level 1.
 
 ![Figure 2.2: Level 1 Data Flow Diagram — Decomposition into Seven Core Subsystems (1.0–7.0) and Three Data Stores (D1–D3)](./diagrams/fig03_dfd_level1.png)
-*Figure 2.2: Level 1 Data Flow Diagram — Decomposition into Seven Core Subsystems (1.0–7.0) and Three Data Stores (D1–D3) (Decomposes Process 0.0 into Auth (1.0), Governance (2.0), API Studio (3.0), Gateway (4.0), Experiment Worker (5.0), Verification (6.0), and Reporting (7.0).)*
+*Figure 2.2: Level 1 Data Flow Diagram — Decomposition into Seven Core Subsystems (1.0–7.0) and Three Data Stores (D1–D3) (Decomposes Process 0.0 into Auth (1.0), Governance (2.0), API Studio & Learning (3.0), Gateway (4.0), Experiment Worker (5.0), Verification (6.0), and Reporting (7.0).)*
 
-![Figure 2.3: Level 2 Data Flow Diagram — Stage-by-Stage Gateway Pipeline (4.1–4.6) and Deterministic Verification Engine (6.1–6.4)](./diagrams/fig04_dfd_level2.png)
-*Figure 2.3: Level 2 Data Flow Diagram — Stage-by-Stage Gateway Pipeline (4.1–4.6) and Deterministic Verification Engine (6.1–6.4) (Illustrates strict pre-authentication before fault injection and the telemetry flush barrier preceding SLA verification.)*
+![Figure 2.3: Level 2 Data Flow Diagram (Part A) — Stage-by-Stage Gateway Pipeline (4.1–4.6) and Deterministic Verification Engine (6.1–6.4)](./diagrams/fig04_dfd_level2.png)
+*Figure 2.3: Level 2 Data Flow Diagram (Part A) — Stage-by-Stage Gateway Pipeline (4.1–4.6) and Deterministic Verification Engine (6.1–6.4) (Illustrates strict pre-authentication before fault injection and the telemetry flush barrier preceding SLA verification.)*
+
+![Figure 2.4: Level 2 Data Flow Diagram (Part B) — Authentication/OTP Recovery (1.1–1.4) and Chaos Experiment Execution & Cleanup (5.1–5.4)](./diagrams/fig04b_dfd_level2_auth_exp.png)
+*Figure 2.4: Level 2 Data Flow Diagram (Part B) — Authentication/OTP Recovery (1.1–1.4) and Chaos Experiment Execution & Cleanup (5.1–5.4) (Illustrates rotating session families, HMAC-SHA256 OTP verification, and guaranteed try/finally ephemeral probe key cleanup.)*
 
 **Table 2.1: DFD Inter-Level Flow Conservation and Balancing Verification Matrix**
 
 | External Boundary Flow | Level 0 Context Representation | Level 1 Subsystem Mapping | Level 2 Granular Stage Mapping |
 | --- | --- | --- | --- |
-| Operator Auth & Session Recovery | E1 <-> 0.0 (Credentials, OTPs, Session Cookies) | E1 <-> Process 1.0 <-> D1 (users, refresh_tokens, recovery_challenges) | 1.1 Identifier Normalizer -> 1.2 Bcrypt/Session Rotator -> 1.3 HMAC-OTP Verifier -> 1.4 Global Session Revoker |
+| Operator Auth & Session Recovery | E1 <-> 0.0 (Credentials, OTPs, Session Cookies) | E1 <-> Process 1.0 <-> D1 (users, refresh_tokens, recovery_challenges) | 1.1 Identifier Normalizer -> 1.2 Refresh Family Rotator -> 1.3 HMAC-OTP Verifier -> 1.4 Global Session Revoker |
 | Protected API Request & Response | E3 -> 0.0 (HTTP + X-API-Key) and 0.0 -> E3 (JSON / 401 / 403 / 429 / 504) | E3 -> Process 4.0 <-> D1/D2 -> E4 (Upstream) or Process 3.0 (Studio) | 4.1 SSRF Guard -> 4.2 Hashed Key Auth -> 4.3 WAF Inspector -> 4.4 Lua Bucket -> 4.5 Post-Auth Fault -> 4.6 Proxy/Studio |
 | Experiment Execution & Cleanup | E1 -> 0.0 (Experiment Spec / Cancel) -> E1 (Live Status) | E1 -> Process 5.0 <-> D1/D2 -> Process 4.0 (Probe Traffic) | 5.1 Ownership & Bounds Check -> 5.2 Ephemeral Key Mint -> 5.3 Baseline/Injection/Recovery Waves -> 5.4 Finally Cleanup |
 | Evidence Verification & PDF Export | 0.0 -> E1 (PASS/FAIL/INCONCLUSIVE Verdict & PDF) & 0.0 -> E5 (Webhooks) | Process 4.0 -> D2 -> Process 6.0 <-> D1 -> Process 7.0 <-> D3 | 6.1 flushTelemetryBarrier() -> 6.2 Phase Partitioner -> 6.3 Coverage & SLA Evaluator -> 6.4 Verdict & SHA-256 PDF Writer |
 
 ## 2.2 Use Case Diagram
 
-The UML Use Case Diagram (Figure 2.4) models the exact actors implemented in FortiX without introducing hypothetical personas. Four human/external actors and one autonomous background actor interact across the system boundary: Unauthenticated Operator, Authenticated API Operator (DEVELOPER / OPERATOR), Platform Administrator (ADMIN), External API Consumer, and the BullMQ Worker.
+The UML Use Case Diagram (Figure 2.5) models the exact actors implemented in FortiX without introducing hypothetical personas. Four human/external actors and one autonomous background actor interact across the system boundary: Unauthenticated Operator, Authenticated API Operator (DEVELOPER / VIEWER), Platform Administrator (ADMIN), External API Consumer, and the BullMQ Worker.
 
-![Figure 2.4: FortiX UML Use Case Diagram Showing Actors, System Boundary, and <<include>> Relationships](./diagrams/fig05_use_case.png)
-*Figure 2.4: FortiX UML Use Case Diagram Showing Actors, System Boundary, and <<include>> Relationships (Mapped to Express routers in src/api/ and frontend routes in src/App.tsx & src/AuthenticatedWorkspace.tsx.)*
+![Figure 2.5: FortiX UML Use Case Diagram Showing Actors, System Boundary, and <<include>> Relationships](./diagrams/fig05_use_case.png)
+*Figure 2.5: FortiX UML Use Case Diagram Showing Actors, System Boundary, and <<include>> Relationships (Mapped to Express routers in src/api/ and frontend routes in src/App.tsx & src/AuthenticatedWorkspace.tsx.)*
 
 - <<include>> Dependencies: UC-02 (Reset Password via OTP) mandatorily includes 6-digit HMAC-SHA256 OTP verification before issuing a single-use resetAuthorization token. Similarly, UC-05 (Run Chaos / Rate-Limit Experiment) mandatorily includes UC-06 (Verify SLA & Evidence) upon completion of the three probe windows.
-- Access Boundary Enforcement: External API Consumers can invoke only UC-09 (/proxy/:routeId/*) and have zero visibility into control-plane endpoints (/api/control/*). Conversely, VIEWER accounts can inspect dashboards and reports but are blocked by requireRole() from mutating routes, keys, policies, or experiments.
+- Access Boundary Enforcement: External API Consumers can invoke only UC-09 (/proxy/:routeId/*) and have zero visibility into control-plane endpoints (/api/control/*). Conversely, VIEWER accounts can inspect dashboards, learning tutorials, and reports but are blocked by RBAC guards from mutating routes, keys, policies, or experiments.
 
 ## 2.3 Class Diagram
 
-Although FortiX uses idiomatic TypeScript functional modules alongside stateful service classes (such as HashedApiKeyCache, LocalStorageProvider, and BullMQ Worker instances), its domain entities and service boundaries form a cohesive object model. Figure 2.5 illustrates the structural relationships, multiplicities, key attributes, and primary methods across the codebase.
+Although FortiX uses idiomatic TypeScript functional modules alongside stateful service classes (such as HashedApiKeyCache, LocalArtifactStorage, and BullMQ Worker instances), its domain entities and service boundaries form a cohesive object model. Figure 2.6 illustrates the structural relationships, multiplicities, key attributes, and primary methods across the codebase.
 
-![Figure 2.5: FortiX Core Domain Entities and Security/Verification Service UML Class Diagram](./diagrams/fig06_class_diagram.png)
-*Figure 2.5: FortiX Core Domain Entities and Security/Verification Service UML Class Diagram (Derived from src/db/schema.ts, src/auth/*, src/gateway/*, src/studio/*, src/verification/*, and src/storage/index.ts.)*
+![Figure 2.6: FortiX Core Domain Entities and Security/Verification Service UML Class Diagram](./diagrams/fig06_class_diagram.png)
+*Figure 2.6: FortiX Core Domain Entities and Security/Verification Service UML Class Diagram (Derived from src/db/schema.ts, src/auth/*, src/gateway/*, src/studio/*, src/verification/*, and src/storage/artifact-storage.ts.)*
 
 **Table 2.2: Mapping of UML Classes/Services to Concrete TypeScript Modules**
 
@@ -287,59 +293,59 @@ Although FortiX uses idiomatic TypeScript functional modules alongside stateful 
 | --- | --- | --- |
 | RefreshSessionService | src/auth/sessions.ts | createRefreshSession(), rotateRefreshSession(), revokeUserSessionFamily(), listUserActiveSessions(); manages Remember-Me TTLs and reuse detection. |
 | RecoveryService | src/auth/recovery.ts | normalizePhoneE164(), computeOtpHmac(), requestPasswordRecoveryOtp(), verifyPasswordRecoveryOtp(); enforces 60s cooldown and 5-attempt lockout. |
-| HashedApiKeyCache | src/gateway/key-cache.ts | Bounded Map indexed by SHA-256(rawKey); strips secretHash before memory storage; evicts immediately via Redis Pub/Sub events. |
-| GatewayEnforcementPipeline | src/gateway/index.ts | Coordinates SSRF check, key validation, WAF inspection, checkRateLimit(), post-auth fault injection, studio/HTTP dispatch, and enqueueMetric(). |
+| HashedApiKeyCache | src/gateway/index.ts & src/lib/key-invalidation.ts | Bounded cache indexed by SHA-256(rawKey); strips secretHash before memory storage; evicts immediately via fortix:api-key:revoked:v1 Pub/Sub. |
+| GatewayEnforcementPipeline | src/gateway/index.ts & src/threat-detection/index.ts | Coordinates SSRF check, key validation, detectThreats() WAF inspection, checkRateLimit(), post-auth fault injection, studio/HTTP dispatch, and enqueueMetric(). |
 | StudioTargetHandler | src/studio/target-handler.ts | handleStudioUpstreamRequest(), validateStudioRecordPayload(), generateStudioOpenApiSpec(); executes tenant-isolated CRUD over studio_records. |
 | ExperimentWorker | src/experiments/worker.ts | runFixedProbeBatch(), runInjectionWorkload(), isExperimentCancelled(); executes BASELINE, INJECTION, and RECOVERY waves with guaranteed cleanup. |
 | VerificationEngine | src/verification/engine.ts | verifyPolicy(), flushTelemetryBarrier(), evaluateExperimentVerification(); computes deterministic PASS / FAIL / INCONCLUSIVE verdicts. |
-| ArtifactStorageProvider | src/storage/index.ts | put(), get(); stores verification PDFs with projectId ownership binding and SHA-256 integrity verification on read. |
+| ArtifactStorageProvider | src/storage/artifact-storage.ts | put(), get(), listByProject(); stores verification PDFs with projectId ownership binding and SHA-256 integrity verification on read. |
 
 ## 2.4 Sequence Diagrams and Deployment Topology
 
 This section documents all nine critical runtime workflows in FortiX using synchronous solid arrows and asynchronous/response dashed arrows, followed by the multi-container production deployment topology.
 
-![Figure 2.6: Sequence Diagram 1 — Operator Login, Remember-Me Token Rotation, and Multi-Step OTP Password Recovery](./diagrams/fig07_seq_auth_recovery.png)
-*Figure 2.6: Sequence Diagram 1 — Operator Login, Remember-Me Token Rotation, and Multi-Step OTP Password Recovery (Implements FTX-AUTH-001 across src/api/auth.ts, src/auth/sessions.ts, and src/auth/recovery.ts.)*
+![Figure 2.7: Sequence Diagram 1 — Operator Login, Remember-Me Token Rotation, and Multi-Step OTP Password Recovery](./diagrams/fig07_seq_auth_recovery.png)
+*Figure 2.7: Sequence Diagram 1 — Operator Login, Remember-Me Token Rotation, and Multi-Step OTP Password Recovery (Implements FTX-AUTH-001 across src/api/auth.ts, src/auth/sessions.ts, and src/auth/recovery.ts.)*
 
-Workflow 1 Explanation (Figure 2.6): During login (steps 1–5), the Auth Router resolves the identifier by normalized email or verified E.164 phone, verifies the bcrypt hash, creates a refresh_tokens family row (30 days when rememberMe=true, 12 hours otherwise), and sets HttpOnly cookies (fortix_session, fortix_refresh) plus fortix_csrf. During account recovery (steps 6–16), /forgot-password generates a 6-digit OTP, stores only its keyed HMAC-SHA256 digest in recovery_challenges, and verifies HTTP 2xx provider delivery. On /verify-reset-otp, an atomic conditional SQL update marks consumed_at and issues a single-use RESET_AUTHORIZATION token. Finally, /reset-password updates password_hash and revokes every refresh token and active JWT session family for the user.
+Workflow 1 Explanation (Figure 2.7): During login (steps 1–5), the Auth Router resolves the identifier by normalized email or verified E.164 phone, verifies the bcrypt hash, creates a refresh_tokens family row (30 days when rememberMe=true, 12 hours otherwise), and sets HttpOnly cookies (fortix_session, fortix_refresh) plus fortix_csrf. During account recovery (steps 6–16), /forgot-password generates a 6-digit OTP, stores only its keyed HMAC-SHA256 digest in recovery_challenges, and verifies HTTP 2xx provider delivery. On /verify-reset-otp, an atomic conditional SQL update marks consumed_at and issues a single-use RESET_AUTHORIZATION token. Finally, /reset-password updates password_hash and revokes every refresh token and active JWT session family for the user.
 
-![Figure 2.7: Sequence Diagram 2 — Gateway Reverse-Proxy Request Processing and Credential Sanitization](./diagrams/fig08_seq_gateway_proxy.png)
-*Figure 2.7: Sequence Diagram 2 — Gateway Reverse-Proxy Request Processing and Credential Sanitization (Implements /proxy/:routeId/* in src/gateway/index.ts.)*
+![Figure 2.8: Sequence Diagram 2 — Gateway Reverse-Proxy Request Processing and Credential Sanitization](./diagrams/fig08_seq_gateway_proxy.png)
+*Figure 2.8: Sequence Diagram 2 — Gateway Reverse-Proxy Request Processing and Credential Sanitization (Implements /proxy/:routeId/* in src/gateway/index.ts and src/gateway/ssrf.ts.)*
 
-Workflow 2 Explanation (Figure 2.7): Every incoming proxy request receives a correlation X-Request-ID. After SSRF target validation (safeDnsLookup preventing DNS rebinding to internal IPs), API-key authentication, and WAF payload inspection succeed, the gateway strips X-API-Key and any fx_* Authorization header so FortiX credentials never leak to external upstreams. Upstream latency and status codes are captured on response finish and pushed asynchronously to Redis Streams.
+Workflow 2 Explanation (Figure 2.8): Every incoming proxy request receives a correlation X-Request-ID. After SSRF target validation (safeDnsLookup preventing DNS rebinding to internal IPs), API-key authentication, and WAF payload inspection succeed, the gateway strips X-API-Key and any fx_* Authorization header so FortiX credentials never leak to external upstreams. Upstream latency and status codes are captured on response finish and pushed asynchronously to fortix:stream:metrics.
 
-![Figure 2.8: Sequence Diagram 3 — Scoped API-Key Validation, SHA-256 Digest Caching, and Pub/Sub Revocation](./diagrams/fig09_seq_apikey_authz.png)
-*Figure 2.8: Sequence Diagram 3 — Scoped API-Key Validation, SHA-256 Digest Caching, and Pub/Sub Revocation (Implements src/gateway/key-cache.ts and src/lib/key-revocation.ts.)*
+![Figure 2.9: Sequence Diagram 3 — Scoped API-Key Validation, SHA-256 Digest Caching, and Pub/Sub Revocation](./diagrams/fig09_seq_apikey_authz.png)
+*Figure 2.9: Sequence Diagram 3 — Scoped API-Key Validation, SHA-256 Digest Caching, and Pub/Sub Revocation (Implements HashedApiKeyCache in src/gateway/index.ts and publishApiKeyInvalidation() in src/lib/key-invalidation.ts.)*
 
-Workflow 3 Explanation (Figure 2.8): On a cache miss, the gateway extracts keyId from fx_live_<keyId>_<secret>, loads the project-scoped row from api_keys, verifies non-revocation, expiration, required route scopes, and bcrypt.compare(secret, secretHash), and caches non-sensitive metadata keyed by SHA-256(rawKey). When an operator revokes or rotates a key, publishKeyRevocation() broadcasts over Redis Pub/Sub so all gateway replicas evict the cached digest immediately.
+Workflow 3 Explanation (Figure 2.9): On a cache miss, the gateway extracts keyId from fx_live_<keyId>_<secret>, loads the project-scoped row from api_keys, verifies non-revocation, expiration, required route scopes, and bcrypt.compare(secret, secretHash), and caches non-sensitive metadata keyed by SHA-256(rawKey). When an operator revokes or deletes a key, publishApiKeyInvalidation() broadcasts on Redis channel fortix:api-key:revoked:v1 so all gateway replicas evict the cached digest immediately.
 
-![Figure 2.9: Sequence Diagram 4 — Atomic Redis Lua Token-Bucket Rate-Limit Enforcement](./diagrams/fig10_seq_ratelimit.png)
-*Figure 2.9: Sequence Diagram 4 — Atomic Redis Lua Token-Bucket Rate-Limit Enforcement (Implements checkRateLimit() in src/rate-limit/redis.ts.)*
+![Figure 2.10: Sequence Diagram 4 — Atomic Redis Lua Token-Bucket Rate-Limit Enforcement](./diagrams/fig10_seq_ratelimit.png)
+*Figure 2.10: Sequence Diagram 4 — Atomic Redis Lua Token-Bucket Rate-Limit Enforcement (Implements checkRateLimit() in src/rate-limit/redis.ts.)*
 
-Workflow 4 Explanation (Figure 2.9): To prevent race conditions under concurrent burst traffic, checkRateLimit() evaluates an embedded Lua script inside Redis using EVAL. Within a single atomic Redis execution step, the script reads tokens and last_refill via HMGET, calculates elapsed token replenishment capped at route rate_limit_rpm, decrements 1 token if available, updates state with HMSET and PEXPIRE, and returns {allowed, remaining}. Exhausted buckets immediately return HTTP 429 and log a throttled telemetry observation.
+Workflow 4 Explanation (Figure 2.10): To prevent race conditions under concurrent burst traffic, checkRateLimit() evaluates an embedded Lua script inside Redis using EVAL on key ratelimit:{routeId}:{identifier}. Within a single atomic Redis execution step, the script reads tokens and last_refill via HMGET, calculates elapsed token replenishment capped at route rate_limit_rpm, decrements 1 token if available, updates state with HMSET and PEXPIRE, and returns {allowed, remaining}. Exhausted buckets immediately return HTTP 429 and log a throttled telemetry observation.
 
-![Figure 2.10: Sequence Diagram 5 — Experiment Creation, BullMQ Queuing, and Three-Phase Execution](./diagrams/fig11_seq_experiment_exec.png)
-*Figure 2.10: Sequence Diagram 5 — Experiment Creation, BullMQ Queuing, and Three-Phase Execution (Implements src/api/experiments.ts and src/experiments/worker.ts.)*
+![Figure 2.11: Sequence Diagram 5 — Experiment Creation, BullMQ Queuing, and Three-Phase Execution](./diagrams/fig11_seq_experiment_exec.png)
+*Figure 2.11: Sequence Diagram 5 — Experiment Creation, BullMQ Queuing, and Three-Phase Execution (Implements src/api/experiments.ts and src/experiments/worker.ts.)*
 
-Workflow 5 Explanation (Figure 2.10): Creating an experiment validates route ownership and bounded parameters (durationMs <= 60,000 ms), persists status=QUEUED, and enqueues a BullMQ job. The worker mints a 15-minute ephemeral fx_test_* API key, executes 5 clean BASELINE probes while fault injection is inactive, transitions status to RUNNING (activating gateway fault injection on that route) while sending tagged INJECTION probe waves, and finally transitions to ANALYZING to record 5 post-fault RECOVERY probes.
+Workflow 5 Explanation (Figure 2.11): Creating an experiment validates route ownership and bounded parameters (durationMs <= 60,000 ms), persists status=QUEUED, and enqueues a BullMQ job. The worker mints a 15-minute ephemeral fx_test_* API key, executes 5 clean BASELINE probes while fault injection is inactive, transitions status to RUNNING (activating gateway fault injection on that route) while sending tagged INJECTION probe waves, and finally transitions to ANALYZING to record 5 post-fault RECOVERY probes.
 
-![Figure 2.11: Sequence Diagram 6 — Bounded Fault Injection, Operator Abort, and Guaranteed Cleanup](./diagrams/fig12_seq_fault_cleanup.png)
-*Figure 2.11: Sequence Diagram 6 — Bounded Fault Injection, Operator Abort, and Guaranteed Cleanup (Illustrates fail-safe try/finally cleanup in src/experiments/worker.ts.)*
+![Figure 2.12: Sequence Diagram 6 — Bounded Fault Injection, Operator Abort, and Guaranteed Cleanup](./diagrams/fig12_seq_fault_cleanup.png)
+*Figure 2.12: Sequence Diagram 6 — Bounded Fault Injection, Operator Abort, and Guaranteed Cleanup (Illustrates fail-safe try/finally cleanup in src/experiments/worker.ts.)*
 
-Workflow 6 Explanation (Figure 2.11): If an operator triggers POST /api/control/experiments/:id/cancel or an unexpected exception occurs mid-run, the API immediately sets status=CANCELLED and invalidates the gateway experiment cache. Before each probe wave, the worker checks isExperimentCancelled(), exits cleanly, and executes its finally block—unconditionally deleting the temporary fx_test_* API key row and clearing any cached fault state.
+Workflow 6 Explanation (Figure 2.12): If an operator triggers POST /api/control/experiments/:id/cancel or an unexpected exception occurs mid-run, the API immediately sets status=CANCELLED and invalidates the gateway experiment cache. Before each probe wave, the worker checks isExperimentCancelled(), exits cleanly, and executes its finally block—unconditionally deleting the temporary fx_test_* API key row and clearing any cached fault state.
 
-![Figure 2.12: Sequence Diagram 7 & 8 — Telemetry Stream Flush Barrier and Evidence-Based Verification](./diagrams/fig13_seq_telemetry_verify.png)
-*Figure 2.12: Sequence Diagram 7 & 8 — Telemetry Stream Flush Barrier and Evidence-Based Verification (Implements flushTelemetryBarrier() and verifyPolicy() in src/verification/engine.ts.)*
+![Figure 2.13: Sequence Diagram 7 & 8 — Telemetry Stream Flush Barrier and Evidence-Based Verification](./diagrams/fig13_seq_telemetry_verify.png)
+*Figure 2.13: Sequence Diagram 7 & 8 — Telemetry Stream Flush Barrier and Evidence-Based Verification (Implements flushTelemetryBarrier() and verifyPolicy() in src/verification/engine.ts.)*
 
-Workflow 7 & 8 Explanation (Figure 2.12): Immediately after probe execution completes, VerificationEngine invokes flushTelemetryBarrier() so buffered Redis Stream entries are committed to metric_logs before SQL evaluation begins—eliminating the classic async telemetry race condition. Observations are partitioned into BASELINE, INJECTION, and RECOVERY windows using exact probe request IDs and timestamp bounds. If expected probe coverage falls below 80% or zero samples exist, the engine refuses to emit a vacuous PASS and instead records INCONCLUSIVE; otherwise it evaluates deterministic policy thresholds to persist PASS or FAIL alongside a SHA-256 PDF report.
+Workflow 7 & 8 Explanation (Figure 2.13): Immediately after probe execution completes, VerificationEngine invokes flushTelemetryBarrier() so buffered fortix:stream:metrics entries are committed to metric_logs before SQL evaluation begins—eliminating the classic async telemetry race condition. Observations are partitioned into BASELINE, INJECTION, and RECOVERY windows using exact probe request IDs and timestamp bounds. If expected probe coverage falls below 80% or zero samples exist, the engine refuses to emit a vacuous PASS and instead records INCONCLUSIVE; otherwise it evaluates deterministic policy thresholds to persist PASS or FAIL alongside a SHA-256 PDF report.
 
-![Figure 2.13: Sequence Diagram 9 — FortiX API Studio 100-Product Provisioning and Protected Gateway CRUD](./diagrams/fig14_seq_api_studio.png)
-*Figure 2.13: Sequence Diagram 9 — FortiX API Studio 100-Product Provisioning and Protected Gateway CRUD (Implements src/api/studio.ts and src/studio/target-handler.ts.)*
+![Figure 2.14: Sequence Diagram 9 — FortiX API Studio 100-Product Provisioning and Protected Gateway CRUD](./diagrams/fig14_seq_api_studio.png)
+*Figure 2.14: Sequence Diagram 9 — FortiX API Studio 100-Product Provisioning and Protected Gateway CRUD (Implements src/api/studio.ts and src/studio/target-handler.ts.)*
 
-Workflow 9 Explanation (Figure 2.13): Selecting the Store Products (100) template in API Studio creates an internal route (targetUrl = fortix-studio://<apiId>), attaches WAF/SSRF/rate-limit policies, seeds 100 deterministic Indian e-commerce products into studio_records, and issues a ready-to-use scoped API key. Subsequent GET/POST/PATCH/DELETE calls traverse the exact same /proxy/:routeId/* enforcement pipeline before reaching handleStudioUpstreamRequest(), allowing complete security and chaos verification with zero external services.
+Workflow 9 Explanation (Figure 2.14): Selecting the Store Products (100) template in API Studio creates an internal route (targetUrl = http://fortix-studio.internal/studio/<apiId>), attaches WAF/SSRF/rate-limit policies, seeds 100 deterministic Indian e-commerce products into studio_records, and issues a ready-to-use scoped API key. Subsequent GET/POST/PATCH/DELETE calls traverse the exact same /proxy/:routeId/* enforcement pipeline before reaching handleStudioUpstreamRequest(), allowing complete security and chaos verification with zero external services.
 
-![Figure 2.14: FortiX Multi-Container Production Deployment Topology (Docker Compose & Cloud Runtime)](./diagrams/fig15_deployment.png)
-*Figure 2.14: FortiX Multi-Container Production Deployment Topology (Docker Compose & Cloud Runtime) (Reconstructed directly from Dockerfile and docker-compose.yml.)*
+![Figure 2.15: FortiX Component & Multi-Container Production Deployment Topology (Docker Compose & Cloud Runtime)](./diagrams/fig15_deployment.png)
+*Figure 2.15: FortiX Component & Multi-Container Production Deployment Topology (Docker Compose & Cloud Runtime) (Reconstructed directly from Dockerfile and docker-compose.yml.)*
 
 ---
 
@@ -347,38 +353,40 @@ Workflow 9 Explanation (Figure 2.13): Selecting the Store Products (100) templat
 
 ## 3.1 Database Tables SQL/NoSQL (PostgreSQL 15 Relational Schema & Redis 7 Keyspace)
 
-FortiX employs a polyglot persistence architecture with strict separation of responsibilities: PostgreSQL 15 serves as the authoritative ACID relational database storing all 21 application tables defined in src/db/schema.ts and versioned through Drizzle ORM migrations (drizzle/0000 through drizzle/0006), whereas Redis 7 is used strictly for atomic Lua token-bucket state, high-throughput telemetry stream buffering, multi-replica Pub/Sub invalidation, and BullMQ job queues—never as a substitute for durable relational records.
+FortiX employs a polyglot persistence architecture with strict separation of responsibilities: PostgreSQL 15 serves as the authoritative ACID relational database storing all 23 application tables defined in src/db/schema.ts and versioned through eight Drizzle ORM migrations (drizzle/0000_dizzy_moon_knight.sql through drizzle/0007_learning_center.sql), whereas Redis 7 is used strictly for atomic Lua token-bucket state, high-throughput telemetry stream buffering, multi-replica Pub/Sub invalidation, and BullMQ job queues—never as a substitute for durable relational records.
 
-![Figure 3.1: Entity-Relationship (ER) Diagram of the Complete 21-Table PostgreSQL Schema Grouped by Domain](./diagrams/fig16_er_diagram.png)
-*Figure 3.1: Entity-Relationship (ER) Diagram of the Complete 21-Table PostgreSQL Schema Grouped by Domain (Generated directly from src/db/schema.ts and migrations 0000_ambitious_rhino.sql through 0006_auth_sessions_and_recovery.sql.)*
+![Figure 3.1: Entity-Relationship (ER) Diagram of the Complete 23-Table PostgreSQL Schema Grouped Across Five Domains](./diagrams/fig16_er_diagram.png)
+*Figure 3.1: Entity-Relationship (ER) Diagram of the Complete 23-Table PostgreSQL Schema Grouped Across Five Domains (Generated directly from src/db/schema.ts and migrations 0000_dizzy_moon_knight.sql through 0007_learning_center.sql.)*
 
-**Table 3.1: Master Inventory of the 21 PostgreSQL Tables in FortiX**
+**Table 3.1: Master Inventory of the 23 PostgreSQL Tables in FortiX**
 
-| # | Table Name | Domain Subsystem | Primary / Foreign Keys | Row-Level Security (RLS) Scope |
+| # | Table Name | Domain Subsystem | Primary / Foreign Keys | Isolation & RLS Policy Scope |
 | --- | --- | --- | --- | --- |
-| 1 | users | Identity & Auth | PK: id | Self-scoped (id = app.current_user_id) |
-| 2 | auth_action_tokens | Identity & Auth | PK: id; FK: user_id -> users | Owner-scoped via user_id |
-| 3 | refresh_tokens | Session Rotation | PK: id; FK: user_id -> users | Owner-scoped via user_id |
-| 4 | recovery_challenges | OTP Account Recovery | PK: id; FK: user_id -> users | Owner-scoped via user_id |
-| 5 | organizations | Tenant Hierarchy | PK: id; FK: owner_id -> users | Owner-scoped (owner_id = current_user_id) |
-| 6 | projects | Tenant Anchor | PK: id; FK: org_id -> organizations | Scoped via organizations.owner_id |
-| 7 | project_settings | Governance | PK: id; UQ FK: project_id -> projects | Tenant-scoped via project_id |
-| 8 | audit_logs | Compliance Audit | PK: id; FK: project_id, user_id | Tenant-scoped via project_id |
-| 9 | api_routes | Gateway Routing | PK: id; FK: project_id -> projects | Tenant-scoped via project_id |
-| 10 | api_keys | Gateway Auth | PK: id; FK: project_id -> projects | Tenant-scoped via project_id |
-| 11 | security_policies | Policy Enforcement | PK: id; FK: route_id -> api_routes | Route -> Project ownership chain |
-| 12 | experiments | Chaos Engine | PK: id; FK: route_id -> api_routes | Route -> Project ownership chain |
-| 13 | verifications | Verification Engine | PK: id; FK: experiment_id -> experiments | Experiment -> Route -> Project chain |
-| 14 | metric_logs | Observability | PK: id; FK: route_id, experiment_id | Route -> Project ownership chain |
-| 15 | security_events | WAF & Threat Log | PK: id; FK: route_id -> api_routes | Route -> Project ownership chain |
-| 16 | webhooks | Outbound Integrations | PK: id; FK: project_id -> projects | Tenant-scoped via project_id |
-| 17 | webhook_deliveries | Webhook Audit | PK: id; FK: webhook_id, project_id | Tenant-scoped via project_id |
-| 18 | workflow_runs | Autonomous Workflows | PK: id; FK: project_id, route_id | Tenant-scoped via project_id |
-| 19 | studio_apis | API Studio | PK: id; FK: project_id, route_id | Tenant-scoped via project_id |
-| 20 | studio_resources | API Studio | PK: id; FK: api_id, project_id | Tenant-scoped via project_id |
-| 21 | studio_records | API Studio Dataset | PK: id; FK: resource_id, api_id, project_id | Tenant-scoped via project_id |
+| 1 | users | Identity & Auth | PK: id | Identity lookup root; unique email & phone_e164 |
+| 2 | auth_action_tokens | Identity & Auth | PK: id; FK: user_id -> users | RLS enabled: user_id = app.current_user_id |
+| 3 | refresh_tokens | Session Rotation | PK: id; FK: user_id -> users | RLS enabled: user_id = app.current_user_id |
+| 4 | recovery_challenges | OTP Account Recovery | PK: id; FK: user_id -> users | RLS enabled: user_id = app.current_user_id |
+| 5 | organizations | Tenant Hierarchy | PK: id; FK: owner_id -> users | RLS enabled: owner_id = app.current_user_id |
+| 6 | projects | Tenant Anchor | PK: id; FK: org_id -> organizations | RLS enabled: via organizations.owner_id |
+| 7 | project_settings | Governance | PK: id; UQ FK: project_id -> projects | RLS enabled: tenant-scoped via project_id |
+| 8 | audit_logs | Compliance Audit | PK: id; FK: project_id, user_id | Append-only log; query-scoped by project_id |
+| 9 | api_routes | Gateway Routing | PK: id; FK: project_id -> projects | RLS enabled: tenant-scoped via project_id |
+| 10 | api_keys | Gateway Auth | PK: id; FK: project_id -> projects | RLS enabled: tenant-scoped via project_id |
+| 11 | security_policies | Policy Enforcement | PK: id; FK: route_id -> api_routes | RLS enabled: route -> project ownership chain |
+| 12 | experiments | Chaos Engine | PK: id; FK: route_id -> api_routes | RLS enabled: route -> project ownership chain |
+| 13 | verifications | Verification Engine | PK: id; FK: experiment_id -> experiments | RLS enabled: experiment -> route -> project |
+| 14 | metric_logs | Observability | PK: id; FK: route_id, experiment_id | Worker batch sink; query-scoped via route_id |
+| 15 | security_events | WAF & Threat Log | PK: id; FK: route_id -> api_routes | Worker batch sink; query-scoped via route_id |
+| 16 | webhooks | Outbound Integrations | PK: id; FK: project_id -> projects | RLS enabled: tenant-scoped via project_id |
+| 17 | webhook_deliveries | Webhook Audit | PK: id; FK: webhook_id, project_id | Worker delivery log; query-scoped via project_id |
+| 18 | workflow_runs | Autonomous Workflows | PK: id; FK: project_id, route_id | RLS enabled: tenant-scoped via project_id |
+| 19 | studio_apis | API Studio | PK: id; FK: project_id, route_id | RLS enabled: tenant-scoped via project_id |
+| 20 | studio_resources | API Studio | PK: id; FK: api_id, project_id | RLS enabled: tenant-scoped via project_id |
+| 21 | studio_records | API Studio Dataset | PK: id; FK: resource_id, api_id, project_id | RLS enabled: tenant-scoped via project_id |
+| 22 | learning_tutorials | Learning Center | PK: id; UQ: slug | Shared platform catalog; ADMIN-only mutations |
+| 23 | learning_progress | Learning Center | PK: id; FK: user_id, tutorial_id | RLS enabled: user_id = app.current_user_id |
 
-Table Purpose (users): Stores operator credentials, RBAC role assignments, normalized E.164 phone numbers, and verification flags. Indexes & Relationships: Unique constraints on email and phone_e164 (nullable PostgreSQL UNIQUE allows multiple NULL rows); referenced by organizations, refresh_tokens, recovery_challenges, and auth_action_tokens.
+Table Purpose (users): Stores operator credentials, RBAC role assignments, normalized E.164 phone numbers, and verification flags. Indexes & Relationships: Unique constraints on email and phone_e164 (nullable PostgreSQL UNIQUE allows multiple NULL rows); referenced by organizations, refresh_tokens, recovery_challenges, auth_action_tokens, and learning_progress.
 
 **Table 3.2: PostgreSQL Data Dictionary — users**
 
@@ -389,7 +397,7 @@ Table Purpose (users): Stores operator credentials, RBAC role assignments, norma
 | phone_e164 | TEXT | UNIQUE, NULLABLE | NULL | "+919876543210" (normalized E.164) |
 | phone_verified | BOOLEAN | NOT NULL | false | true (required before SMS OTP recovery) |
 | password_hash | TEXT | NOT NULL | None | "$2b$10$N9qo8uLOickgx2ZMRZoMye..." |
-| role | TEXT | NOT NULL | 'DEVELOPER' | 'DEVELOPER' \| 'ADMIN' \| 'OPERATOR' \| 'VIEWER' |
+| role | TEXT | NOT NULL | 'DEVELOPER' | 'ADMIN' \| 'DEVELOPER' \| 'VIEWER' |
 | email_verified | BOOLEAN | NOT NULL | false | true |
 | created_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:15:00" |
 
@@ -439,7 +447,7 @@ Table Purpose (recovery_challenges): Stores time-limited 6-digit OTP verificatio
 | channel | TEXT | NOT NULL | None | 'EMAIL' \| 'SMS' |
 | purpose | TEXT | NOT NULL | None | 'PASSWORD_RESET' \| 'PHONE_VERIFICATION' |
 | destination_masked | TEXT | NOT NULL | None | "op***@example.edu" or "+91******3210" |
-| otp_hmac | TEXT (64-hex) | NOT NULL | None | HMAC-SHA256(secret, challengeId:userId:purpose:otp) |
+| otp_hmac | TEXT (64-hex) | NOT NULL | None | HMAC-SHA256(key, challengeId:purpose:otp) |
 | expires_at | TIMESTAMP | NOT NULL | None | "2026-11-03 10:25:00" (10-minute window) |
 | failed_attempts | INTEGER | NOT NULL | 0 | 0..5 (locked when failed_attempts >= max_attempts) |
 | max_attempts | INTEGER | NOT NULL | 5 | 5 |
@@ -483,7 +491,7 @@ Table Purpose (api_routes): Maps external gateway path patterns (/proxy/:routeId
 | id | TEXT (UUID) | PRIMARY KEY, NOT NULL | None | "rt-7a88c112-3f44-4d91-8122-9900aabbccdd" |
 | project_id | TEXT (UUID) | FK -> projects.id (CASCADE), NOT NULL | None | "proj-dd7b1eb5-6d4d-4a4b-b313-8646128537b1" |
 | path_pattern | TEXT | NOT NULL | None | "/api/store/*" |
-| target_url | TEXT | NOT NULL | None | "fortix-studio://91c0..." or "https://api.example.org" |
+| target_url | TEXT | NOT NULL | None | "http://fortix-studio.internal/studio/91c0..." or "https://api.example.org" |
 | created_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:16:00" |
 
 Table Purpose (api_keys): Stores hashed gateway client credentials, visible lookup prefixes, route scopes, expiration timestamps, and revocation markers. Indexes & Relationships: FK project_id -> projects.id ON DELETE CASCADE; secret_hash stores bcrypt digest only—raw key is returned once at creation.
@@ -543,7 +551,7 @@ Table Purpose (verifications): Stores deterministic SLA evaluation contracts, th
 | expected | JSONB | NOT NULL | None | {"minBaselineSamples":5,"expectedInjectedLatencyMs":200} |
 | observed | JSONB | NOT NULL | None | {"baseline":{"count":5,"p95Ms":8},"injection":{"count":12,"p95Ms":211},"recovery":{"count":5,"errorRate":0}} |
 | verdict | TEXT | NOT NULL | None | 'PASS' \| 'FAIL' \| 'INCONCLUSIVE' |
-| pdf_s3_url | TEXT | NULLABLE | NULL | "artifact://proj-dd7b.../ver-51d2....pdf" |
+| pdf_s3_url | TEXT | NULLABLE | NULL | "projects/proj-dd7b.../ver-51d2....pdf" |
 | created_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:17:05" |
 
 Table Purpose (metric_logs): Time-series request telemetry capturing per-request latency, HTTP status code, correlation request_id, and optional experiment association. Indexes & Relationships: FK route_id -> api_routes.id (CASCADE); FK experiment_id -> experiments.id (SET NULL); composite index route_time_idx(route_id, timestamp).
@@ -658,7 +666,7 @@ Table Purpose (workflow_runs): Tracks orchestrated multi-step verification workf
 | params | JSONB | NOT NULL | None | {"targetRpm":30,"burstCount":45} |
 | timeline | JSONB | NOT NULL | None | [{"step":"BASELINE","status":"DONE"}] |
 | deterministic_verdict | JSONB | NULLABLE | NULL | {"verdict":"PASS","throttledCount":15} |
-| ai_analysis | JSONB | NULLABLE | NULL | NULL (AI advisory deferred by scope governance) |
+| ai_analysis | JSONB | NULLABLE | NULL | {"available":false} (optional post-run advisory; deterministic_verdict is authoritative) |
 | evidence_summary | JSONB | NULLABLE | NULL | {"coverage":1.0,"sampleCount":45} |
 | cleanup_status | TEXT | NOT NULL | 'NOT_REQUIRED' | 'COMPLETED' \| 'NOT_REQUIRED' |
 | error_message | TEXT | NULLABLE | NULL | NULL |
@@ -713,13 +721,60 @@ Table Purpose (studio_records): Stores individual JSONB entity rows (such as pro
 | created_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:16:01" |
 | updated_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:16:01" |
 
+Table Purpose (learning_tutorials): Stores structured tutorial metadata, lifecycle stage mappings (PROTECT through IMPROVE), allowlisted video references, objectives, steps, and documentation links for the In-App Video Learning Center (FTX-LEARN-001). Indexes & Relationships: UNIQUE(slug); composite B-tree indexes learning_tutorials_published_sort_idx(published, sort_order), learning_tutorials_category_sort_idx(category, sort_order), and learning_tutorials_lifecycle_idx(lifecycle_stage, sort_order).
+
+**Table 3.23: PostgreSQL Data Dictionary — learning_tutorials**
+
+| Column Name | SQL Type | PK / FK / Constraints | Default | Synthetic Example / Notes |
+| --- | --- | --- | --- | --- |
+| id | TEXT (UUID) | PRIMARY KEY, NOT NULL | None | "tut-01-getting-started" |
+| slug | TEXT | UNIQUE, NOT NULL | None | "getting-started-with-fortix" |
+| title | TEXT | NOT NULL | None | "Getting Started: Protect & Verify Your First API" |
+| description | TEXT | NOT NULL | None | "Guided walkthrough of the five-stage FortiX lifecycle." |
+| module_name | TEXT | NOT NULL | None | "API Studio" \| "Security Policies" \| "Experiments" |
+| lifecycle_stage | TEXT | NOT NULL | None | 'PROTECT' \| 'BREAK' \| 'OBSERVE' \| 'PROVE' \| 'IMPROVE' |
+| category | TEXT | NOT NULL | None | "Onboarding" \| "Gateway Security" \| "Resilience" |
+| difficulty | TEXT | NOT NULL | None | 'Beginner' \| 'Intermediate' \| 'Advanced' |
+| video_provider | TEXT | NOT NULL | 'none' | 'self_hosted' \| 'https_allowlist' \| 'youtube_nocookie' \| 'none' |
+| video_reference | TEXT | NULLABLE | NULL | "/tutorials/fortix-overview.mp4" or allowlisted URL |
+| video_source_note | TEXT | NULLABLE | NULL | "Interactive step-by-step guided simulation" |
+| thumbnail_url | TEXT | NULLABLE | NULL | NULL or validated HTTPS asset path |
+| captions_url | TEXT | NULLABLE | NULL | "/captions/getting-started.vtt" |
+| duration_seconds | INTEGER | NOT NULL | None | 240 |
+| learning_objectives | JSONB | NOT NULL | None | ["Create Store API","Enforce 30 RPM policy"] |
+| prerequisites | JSONB | NOT NULL | None | ["Active FortiX project workspace"] |
+| steps | JSONB | NOT NULL | None | [{"stepNumber":1,"title":"Open API Studio","actionRoute":"/studio"}] |
+| warnings | JSONB | NOT NULL | None | ["Chaos probes run post-authentication only."] |
+| related_slugs | JSONB | NOT NULL | None | ["token-bucket-rate-limiting"] |
+| doc_links | JSONB | NOT NULL | None | [{"label":"Security Policies","href":"/security"}] |
+| featured | BOOLEAN | NOT NULL | false | true |
+| published | BOOLEAN | NOT NULL | true | true |
+| sort_order | INTEGER | NOT NULL | 100 | 10 |
+| created_at / updated_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:15:00" |
+
+Table Purpose (learning_progress): Tracks per-operator video playback resume timestamps, monotonic maximum watched duration, and completion state across sessions. Indexes & Relationships: FK user_id -> users.id (CASCADE), FK tutorial_id -> learning_tutorials.id (CASCADE); UNIQUE(user_id, tutorial_id); index learning_progress_user_watched_idx(user_id, last_watched_at); RLS isolated per user.
+
+**Table 3.24: PostgreSQL Data Dictionary — learning_progress**
+
+| Column Name | SQL Type | PK / FK / Constraints | Default | Synthetic Example / Notes |
+| --- | --- | --- | --- | --- |
+| id | TEXT (UUID) | PRIMARY KEY, NOT NULL | None | "lprog-8812a3b4-c5d6-4e7f-8901-23456789abcd" |
+| user_id | TEXT (UUID) | FK -> users.id (CASCADE), NOT NULL | None | "550e8400-e29b-41d4-a716-446655440000" |
+| tutorial_id | TEXT (UUID) | FK -> learning_tutorials.id (CASCADE), NOT NULL | None | "tut-01-getting-started" |
+| last_position_seconds | INTEGER | NOT NULL | 0 | 145 (resume playback cursor) |
+| max_watched_seconds | INTEGER | NOT NULL | 0 | 180 (monotonic high-water mark) |
+| completed | BOOLEAN | NOT NULL | false | true |
+| completed_at | TIMESTAMP | NULLABLE | NULL | "2026-11-03 10:24:12" |
+| last_watched_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:24:12" |
+| updated_at | TIMESTAMP | NOT NULL | now() | "2026-11-03 10:24:12" |
+
 ### 3.1.1 Normalization, JSONB Trade-Offs, Indexing, Transactions, and Row-Level Security (RLS)
 
-- First, Second, and Third Normal Form (1NF–3NF): Core relational entities—users, organizations, projects, api_routes, api_keys, security_policies, experiments, verifications, refresh_tokens, and recovery_challenges—satisfy 3NF. Every non-key attribute depends solely on the table UUID primary key without transitive dependencies between non-key attributes. Controlled denormalization of project_id onto studio_resources, studio_records, and webhook_deliveries is deliberately employed so PostgreSQL Row-Level Security (RLS) policies and B-tree indexes can filter tenant rows in O(log N) without three-table joins on every request.
-- Justified JSONB Columns: PostgreSQL JSONB is used strictly where schemas are inherently polymorphic or user-defined: Studio dynamic resource payloads (studio_records.data), experiment fault configurations (experiments.config), verification phase histograms (verifications.observed), and audit diffs (audit_logs.diff). All JSONB writes are validated beforehand by Zod schemas or validateStudioRecordPayload().
-- Composite B-Tree Indexing Strategy: Hot read paths use targeted composite indexes—route_time_idx(route_id, timestamp) for time-windowed verification queries, threat_route_time_idx(route_id, timestamp) for WAF dashboards, refresh_tokens_family_idx(family_id) for instant token-family revocation, recovery_challenges_user_purpose_idx(user_id, purpose, created_at) for OTP cooldown checks, and studio_records_resource_record_id_idx(resource_id, record_id) for O(log N) CRUD lookups.
+- First, Second, and Third Normal Form (1NF–3NF): Core relational entities—users, organizations, projects, api_routes, api_keys, security_policies, experiments, verifications, refresh_tokens, recovery_challenges, learning_tutorials, and learning_progress—satisfy 3NF. Every non-key attribute depends solely on the table UUID primary key without transitive dependencies between non-key attributes. Controlled denormalization of project_id onto studio_resources, studio_records, and webhook_deliveries is deliberately employed so PostgreSQL Row-Level Security (RLS) policies and B-tree indexes can filter tenant rows in O(log N) without three-table joins on every request.
+- Justified JSONB Columns: PostgreSQL JSONB is used strictly where schemas are inherently polymorphic or structured arrays: Studio dynamic resource payloads (studio_records.data), experiment fault configurations (experiments.config), verification phase histograms (verifications.observed), tutorial step checklists (learning_tutorials.steps), and audit diffs (audit_logs.diff). All JSONB writes are validated beforehand by Zod schemas or validateStudioRecordPayload().
+- Composite B-Tree Indexing Strategy: Hot read paths use targeted composite indexes—route_time_idx(route_id, timestamp) for time-windowed verification queries, threat_route_time_idx(route_id, timestamp) for WAF dashboards, refresh_tokens_family_idx(family_id) for instant token-family revocation, recovery_challenges_user_purpose_idx(user_id, purpose, created_at) for OTP cooldown checks, studio_records_resource_record_id_idx(resource_id, record_id) for O(log N) CRUD lookups, and learning_progress_user_tutorial_idx(user_id, tutorial_id) for idempotent progress upserts.
 - Referential Integrity & Atomic Transactions: Deleting a project cascades cleanly across routes, keys, policies, Studio APIs, experiments, and logs, whereas deleting an experiment sets metric_logs.experiment_id to NULL (ON DELETE SET NULL) so historical route traffic metrics remain intact. Single-use token consumption (consumeAuthActionToken and verifyPasswordRecoveryOtp) uses atomic conditional UPDATE ... WHERE consumed_at IS NULL RETURNING * statements to prevent race conditions under concurrent requests.
-- Engine-Level Tenant Isolation (PostgreSQL RLS): In drizzle/postgres_rls_policies.sql and withTenantContext() (src/db/index.ts), FortiX binds set_config('app.current_user_id', userId, true) inside transactions and enforces ENABLE ROW LEVEL SECURITY + FORCE ROW LEVEL SECURITY across all 21 tables as defense-in-depth behind application-level verifyProjectAccess() guards.
+- Engine-Level Tenant Isolation (PostgreSQL RLS): In drizzle/postgres_rls_policies.sql and withTenantContext() (src/db/index.ts), FortiX creates non-superuser role fortix_app (NOBYPASSRLS), binds set_config('app.current_user_id', userId, true) inside transactions, and enforces ENABLE ROW LEVEL SECURITY across all 17 tenant-owned and user-owned tables as defense-in-depth behind application-level project ownership guards.
 
 **Representative SQL Migration Excerpt — Auth Sessions & OTP Recovery** (`drizzle/0006_auth_sessions_and_recovery.sql`)
 
@@ -753,15 +808,15 @@ CREATE TABLE IF NOT EXISTS "recovery_challenges" (
 );
 ```
 
-**Table 3.23: Redis 7 Operational Keyspace, Data Structures, and TTL Lifecycle**
+**Table 3.25: Redis 7 Operational Keyspace, Data Structures, and TTL Lifecycle**
 
 | Redis Key / Channel Pattern | Redis Type | TTL / Retention | Operational Role & Lifecycle |
 | --- | --- | --- | --- |
-| ratelimit:{projectId}:{routeId}:{client} | HASH | PEXPIRE ~120s idle | Stores tokens and last_refill mutated atomically by the Lua token-bucket script in src/rate-limit/redis.ts. |
-| fortix:telemetry:stream | STREAM | MAXLEN ~100,000 | Buffers high-frequency gateway metric observations via XADD and drains via consumer group XREADGROUP + XACK into metric_logs. |
+| ratelimit:{routeId}:{identifier} | HASH | PEXPIRE ~120s idle | Stores tokens and last_refill mutated atomically by the Lua token-bucket script in src/rate-limit/redis.ts. |
+| fortix:stream:metrics & fortix:stream:security | STREAM | MAXLEN ~100,000 | Buffers high-frequency gateway metrics and security events via XADD; drained by consumer group fortix:telemetry_group into PostgreSQL. |
 | fortix:revoked-jwt:{jtiOrHash} | STRING | Remaining JWT exp | Distributed revocation denylist checked on control-plane JWT authentication across API replicas. |
 | fortix:revoked-sid:{familyId} | STRING | 30 days max | Invalidates active access JWTs immediately when a refresh session family is revoked or reuse is detected. |
-| fortix:events:key-revocation | PUB/SUB | Transient broadcast | Broadcasts api_key.revoked events so every gateway replica evicts HashedApiKeyCache entries immediately. |
+| fortix:api-key:revoked:v1 | PUB/SUB | Transient broadcast | Broadcasts key invalidation events (src/lib/key-invalidation.ts) so every gateway replica evicts HashedApiKeyCache entries immediately. |
 | bull:experiments:* / bull:webhooks:* | LIST / ZSET / HASH | Removed on completion; DLQ retained | BullMQ job queues, active locks, retry schedules, and failed job metadata for background workers. |
 
 ---
@@ -770,7 +825,7 @@ CREATE TABLE IF NOT EXISTS "recovery_challenges" (
 
 ## 4.1 Screen Layouts with Validations
 
-All user interface screenshots in this chapter were captured programmatically via Playwright Chromium from the live running FortiX application on port 3000 (scripts/report/capture-assets.ts) after redacting raw API keys, session tokens, OTP digits, and personal email addresses. Table 4.1 summarizes all operator screens, input validations, error/success states, and backend API integrations.
+All fifteen user interface screenshots in this chapter were captured programmatically via Playwright Chromium from the live running FortiX application on port 3000 (scripts/report/capture-assets.ts) after redacting raw API keys, session tokens, OTP digits, and personal email addresses. Table 4.1 summarizes all operator screens, input validations, error/success states, and backend API integrations.
 
 **Table 4.1: Screen Inventory, Client/Server Validation Rules, and Backend Endpoint Bindings**
 
@@ -780,47 +835,66 @@ All user interface screenshots in this chapter were captured programmatically vi
 | Forgot Password (/forgot-password) | src/pages/PasswordRecovery.tsx | Accepts email or E.164 phone (max 254 chars); always displays neutral confirmation notice regardless of account existence to prevent user enumeration. | POST /api/auth/forgot-password |
 | Verify Reset OTP (/verify-reset) | src/pages/PasswordRecovery.tsx | Strips non-digits, enforces exact 6-digit numeric OTP (/^\d{6}$/), displays remaining attempts (max 5) and 60s resend countdown timer. | POST /api/auth/verify-reset-otp, POST /api/auth/resend-reset-otp |
 | New Password (/reset-password) | src/pages/PasswordRecovery.tsx | Requires 8–128 chars and exact newPassword === confirmPassword match; revokes all sessions on success and redirects to /login. | POST /api/auth/reset-password |
-| Command Dashboard (/) | src/pages/Dashboard.tsx | Displays project-scoped request volume, P50/P95/P99 latency charts, error ratios, active routes, and live Socket.IO event feed. | GET /api/control/telemetry, Socket.IO subscribe:project |
+| Command Dashboard (/) | src/pages/Dashboard.tsx | Displays project-scoped request volume, P50/P95/P99 latency charts, error ratios, active routes, and live Socket.IO event feed. | GET /api/control/metrics, Socket.IO subscribe:project |
 | FortiX API Studio (/studio) | src/pages/ApiStudio.tsx | Validates basePath (/^\/[a-zA-Z0-9/_-]+$/), resource slug, typed field rules; supports 100-Product seed, live CRUD playground, and OpenAPI 3.0.3 JSON export. | GET/POST /api/control/studio/apis, ALL /proxy/:routeId/* |
-| Protected APIs (/apis) | src/pages/ProtectedApis.tsx | Validates route pathPattern and HTTPS/Studio targetUrl (rejects SSRF private/loopback/metadata IPs with 400/403); issues one-time fx_live_* keys. | GET/POST/DELETE /api/control/routes, /api/control/keys |
-| Security Policies (/security) | src/pages/SecurityPolicies.tsx | Validates positive integer rateLimitRpm and boolean enableWaf / enableSsrf toggles per route; persists immediately to gateway policy cache. | GET/POST/PUT /api/control/policies, /api/control/threats |
+| Protected APIs (/apis) | src/pages/APIs.tsx | Validates route pathPattern and HTTPS/Studio targetUrl (rejects SSRF private/loopback/metadata IPs with 400/403); issues one-time fx_live_* keys. | GET/POST/DELETE /api/control/routes, /api/control/keys |
+| Security Policies (/security) | src/pages/Security.tsx | Validates positive integer rateLimitRpm and boolean enableWaf / enableSsrf toggles per route; persists immediately to gateway policy cache. | GET/POST/PUT /api/control/policies |
+| Threat Monitor (/threats) | src/pages/Threats.tsx | Filters blocked SQLi, XSS, path-traversal, and SSRF events by route and severity with sanitized evidence payloads. | GET /api/control/events |
 | Chaos Experiments (/experiments) | src/pages/Experiments.tsx | Enforces Zod caps (latencyMs 1–10,000 ms, durationMs 500–60,000 ms); supports live status badges (QUEUED -> OBSERVING -> RUNNING -> COMPLETED) and Abort action. | GET/POST /api/control/experiments, POST /:id/cancel |
-| Verifications & PDF (/verifications) | src/pages/Verifications.tsx | Renders PASS / FAIL / INCONCLUSIVE badges, Baseline vs Injection vs Recovery metrics, and one-click SHA-256 PDF compliance report download. | GET /api/control/verifications, GET /api/control/reports/:id/pdf |
+| Verifications & PDF (/verifications) | src/pages/Verifications.tsx | Renders PASS / FAIL / INCONCLUSIVE badges, Baseline vs Injection vs Recovery metrics, and one-click SHA-256 PDF compliance report generation. | GET /api/control/verifications, POST /api/control/reports/:id |
+| Resilience Posture (/resilience) | src/pages/Resilience.tsx | Computes deterministic route/project resilience scores from verified policy coverage, WAF/SSRF enablement, and recovery pass ratios. | GET /api/control/verifications, /policies, /metrics |
+| Gateway Topology (/topology) | src/pages/Topology.tsx | Visualizes live client -> FortiX Gateway -> Studio/External upstream route bindings, health states, and policy badges. | GET /api/control/topology |
+| Video Learning Center (/learning-center) | src/pages/LearningCenter.tsx & TutorialDetail.tsx | Filters tutorials by lifecycle stage/category/difficulty, validates allowlisted video origins, persists resume position & completion. | GET /api/control/learning/tutorials, PUT /progress/:id |
 | Account & Governance (/settings) | src/pages/Settings.tsx | Validates E.164 phone enrollment + 6-digit SMS OTP, lists active refresh session families with Revoke buttons, and enforces optimistic version locking on project settings. | GET/DELETE /api/control/account/sessions, /phone/*, /settings |
 
 ![Figure 4.1: FortiX Sign-In Screen (/login) Showing Dual Email/Phone Identifier Input, Remember-Me Toggle, Forgot Password Link, and Account Creation Entry](./screenshots/scr01_login.png)
-*Figure 4.1: FortiX Sign-In Screen (/login) Showing Dual Email/Phone Identifier Input, Remember-Me Toggle, Forgot Password Link, and Account Creation Entry (Captured live from src/components/Login.tsx (Dev Sandbox helper removed; zero password storage).)*
+*Figure 4.1: FortiX Sign-In Screen (/login) Showing Dual Email/Phone Identifier Input, Remember-Me Toggle, Forgot Password Link, and Account Creation Entry (Captured live from src/components/Login.tsx (zero password storage in browser).)*
 
-![Figure 4.2: Password Recovery Initiation Screen (/forgot-password) Accepting Registered Email or Verified E.164 Phone Number](./screenshots/scr02_forgot_password.png)
-*Figure 4.2: Password Recovery Initiation Screen (/forgot-password) Accepting Registered Email or Verified E.164 Phone Number (Captured live from src/pages/PasswordRecovery.tsx with redacted demo email.)*
+![Figure 4.2: FortiX Account Registration View (/login Create Account Mode) Enforcing Email Normalization and Minimum Password Length](./screenshots/scr02_register.png)
+*Figure 4.2: FortiX Account Registration View (/login Create Account Mode) Enforcing Email Normalization and Minimum Password Length (Captured live from src/components/Login.tsx with redacted academic demo address.)*
 
-![Figure 4.3: Identity Verification OTP Screen (/verify-reset) Displaying Masked Destination, 6-Digit Numeric Input, and 60-Second Resend Cooldown](./screenshots/scr03_verify_otp.png)
-*Figure 4.3: Identity Verification OTP Screen (/verify-reset) Displaying Masked Destination, 6-Digit Numeric Input, and 60-Second Resend Cooldown (Captured live from src/pages/PasswordRecovery.tsx with OTP digits redacted (••••••).)*
+![Figure 4.3: Password Recovery Initiation Screen (/forgot-password) Accepting Registered Email or Verified E.164 Phone Number](./screenshots/scr03_forgot_password.png)
+*Figure 4.3: Password Recovery Initiation Screen (/forgot-password) Accepting Registered Email or Verified E.164 Phone Number (Captured live from src/pages/PasswordRecovery.tsx with redacted demo email.)*
 
-![Figure 4.4: FortiX Command Overview Dashboard (/) Showing Real Gateway Traffic Telemetry, Latency Distribution, and Active Route Status](./screenshots/scr04_dashboard.png)
-*Figure 4.4: FortiX Command Overview Dashboard (/) Showing Real Gateway Traffic Telemetry, Latency Distribution, and Active Route Status (Captured live after executing Store Products API gateway requests and SQLi WAF block.)*
+![Figure 4.4: Identity Verification OTP Screen (/verify-reset) Displaying Masked Destination, 6-Digit Numeric Input, and 60-Second Resend Cooldown](./screenshots/scr04_verify_otp.png)
+*Figure 4.4: Identity Verification OTP Screen (/verify-reset) Displaying Masked Destination, 6-Digit Numeric Input, and 60-Second Resend Cooldown (Captured live from src/pages/PasswordRecovery.tsx with OTP digits redacted (••••••).)*
 
-![Figure 4.5: FortiX API Studio Workspace (/studio) Showing Provisioned Store Products API (100 Records), Resource Schema, Playground, and OpenAPI Export](./screenshots/scr05_api_studio.png)
-*Figure 4.5: FortiX API Studio Workspace (/studio) Showing Provisioned Store Products API (100 Records), Resource Schema, Playground, and OpenAPI Export (Captured live from src/pages/ApiStudio.tsx.)*
+![Figure 4.5: FortiX Command Overview Dashboard (/) Showing Real Gateway Traffic Telemetry, Latency Distribution, and Active Route Status](./screenshots/scr05_dashboard.png)
+*Figure 4.5: FortiX Command Overview Dashboard (/) Showing Real Gateway Traffic Telemetry, Latency Distribution, and Active Route Status (Captured live from src/pages/Dashboard.tsx after Store Products API traffic and SQLi WAF block.)*
 
-![Figure 4.6: Protected APIs & Gateway Route Registry (/apis) Showing Route Bindings and Scoped API-Key Management](./screenshots/scr06_protected_apis.png)
-*Figure 4.6: Protected APIs & Gateway Route Registry (/apis) Showing Route Bindings and Scoped API-Key Management (Captured live from src/pages/ProtectedApis.tsx with raw API keys redacted.)*
+![Figure 4.6: FortiX API Studio Workspace (/studio) Showing Provisioned Store Products API (100 Records), Resource Schema, Playground, and OpenAPI Export](./screenshots/scr06_api_studio.png)
+*Figure 4.6: FortiX API Studio Workspace (/studio) Showing Provisioned Store Products API (100 Records), Resource Schema, Playground, and OpenAPI Export (Captured live from src/pages/ApiStudio.tsx.)*
 
-![Figure 4.7: Security Policies Screen (/security) Configuring Per-Route Token-Bucket RPM Limits, WAF Inspection, and SSRF Guards](./screenshots/scr07_security_policies.png)
-*Figure 4.7: Security Policies Screen (/security) Configuring Per-Route Token-Bucket RPM Limits, WAF Inspection, and SSRF Guards (Captured live from src/pages/SecurityPolicies.tsx.)*
+![Figure 4.7: Protected APIs & Gateway Route Registry (/apis) Showing Route Bindings and Scoped API-Key Management](./screenshots/scr07_protected_apis.png)
+*Figure 4.7: Protected APIs & Gateway Route Registry (/apis) Showing Route Bindings and Scoped API-Key Management (Captured live from src/pages/APIs.tsx with raw API keys redacted.)*
 
-![Figure 4.8: Chaos & Resilience Experiments Screen (/experiments) Showing Bounded Fault Injection Configuration and Execution History](./screenshots/scr08_experiments.png)
-*Figure 4.8: Chaos & Resilience Experiments Screen (/experiments) Showing Bounded Fault Injection Configuration and Execution History (Captured live from src/pages/Experiments.tsx after completing a bounded 200ms latency experiment.)*
+![Figure 4.8: Security Policies Screen (/security) Configuring Per-Route Token-Bucket RPM Limits, WAF Inspection, and SSRF Guards](./screenshots/scr08_security_policies.png)
+*Figure 4.8: Security Policies Screen (/security) Configuring Per-Route Token-Bucket RPM Limits, WAF Inspection, and SSRF Guards (Captured live from src/pages/Security.tsx.)*
 
-![Figure 4.9: Verification Results & Evidence Reports Screen (/verifications) Displaying Deterministic SLA Verdicts and PDF Export](./screenshots/scr09_verifications.png)
-*Figure 4.9: Verification Results & Evidence Reports Screen (/verifications) Displaying Deterministic SLA Verdicts and PDF Export (Captured live from src/pages/Verifications.tsx.)*
+![Figure 4.9: WAF & Threat Intelligence Monitor (/threats) Displaying Real Blocked SQL Injection Event on Protected Store Route](./screenshots/scr09_threats.png)
+*Figure 4.9: WAF & Threat Intelligence Monitor (/threats) Displaying Real Blocked SQL Injection Event on Protected Store Route (Captured live from src/pages/Threats.tsx.)*
 
-![Figure 4.10: Account Security Settings (/settings?tab=account) Showing Verified Phone Enrollment and Active Refresh Session Revocation](./screenshots/scr10_settings_account.png)
-*Figure 4.10: Account Security Settings (/settings?tab=account) Showing Verified Phone Enrollment and Active Refresh Session Revocation (Captured live from src/pages/Settings.tsx.)*
+![Figure 4.10: Chaos & Resilience Experiments Screen (/experiments) Showing Bounded Fault Injection Configuration and Execution History](./screenshots/scr10_experiments.png)
+*Figure 4.10: Chaos & Resilience Experiments Screen (/experiments) Showing Bounded Fault Injection Configuration and Execution History (Captured live from src/pages/Experiments.tsx after completing a bounded 200ms latency experiment.)*
+
+![Figure 4.11: Verification Results & Evidence Reports Screen (/verifications) Displaying Deterministic SLA Verdicts and PDF Export](./screenshots/scr11_verifications.png)
+*Figure 4.11: Verification Results & Evidence Reports Screen (/verifications) Displaying Deterministic SLA Verdicts and PDF Export (Captured live from src/pages/Verifications.tsx.)*
+
+![Figure 4.12: Resilience Posture & Scoring Screen (/resilience) Summarizing Policy Enforcement Coverage and Verified Recovery Health](./screenshots/scr12_resilience.png)
+*Figure 4.12: Resilience Posture & Scoring Screen (/resilience) Summarizing Policy Enforcement Coverage and Verified Recovery Health (Captured live from src/pages/Resilience.tsx.)*
+
+![Figure 4.13: Gateway Service Topology View (/topology) Mapping Client Ingress, Gateway Enforcement Plane, and Studio Upstream Target](./screenshots/scr13_topology.png)
+*Figure 4.13: Gateway Service Topology View (/topology) Mapping Client Ingress, Gateway Enforcement Plane, and Studio Upstream Target (Captured live from src/pages/Topology.tsx.)*
+
+![Figure 4.14: In-App Video Learning Center (/learning-center) Showing Lifecycle-Categorized Guided Tutorials and Progress Tracking (FTX-LEARN-001)](./screenshots/scr14_learning_center.png)
+*Figure 4.14: In-App Video Learning Center (/learning-center) Showing Lifecycle-Categorized Guided Tutorials and Progress Tracking (FTX-LEARN-001) (Captured live from src/pages/LearningCenter.tsx.)*
+
+![Figure 4.15: Account Security Settings (/settings?tab=account) Showing Verified Phone Enrollment and Active Refresh Session Revocation](./screenshots/scr15_settings_account.png)
+*Figure 4.15: Account Security Settings (/settings?tab=account) Showing Verified Phone Enrollment and Active Refresh Session Revocation (Captured live from src/pages/Settings.tsx.)*
 
 ## 4.2 Sample Coding (with Security Tasks)
 
-This section presents eight core implementation excerpts taken directly from the FortiX TypeScript codebase. Each excerpt is accompanied by its file path, engineering purpose, logical block walkthrough, inputs/outputs, error handling, security considerations, module interactions, and automated test coverage.
+This section presents seven core implementation excerpts taken directly from the FortiX TypeScript codebase. Each excerpt is accompanied by its exact file path, engineering purpose, logical block walkthrough, inputs/outputs, error handling, security considerations, module interactions, and automated test coverage.
 
 **Sample 1 — Rotating Remember-Me Refresh Sessions & Reuse Detection** (`src/auth/sessions.ts`)
 
@@ -860,19 +934,20 @@ export async function rotateRefreshSession(
 
 Walkthrough & Security Analysis (src/auth/sessions.ts): (1) Purpose: Rotates opaque refresh tokens across browser restarts while detecting stolen token replay. (2) Logical Blocks: Hashes incoming cookie value with SHA-256; checks whether replacedById or revokedAt is already set; if replayed, revokes every row in familyId and calls revokeSessionFamilySid() in src/lib/jwt-security.ts; otherwise inserts a successor token and links replacedById. (3) I/O: Accepts 64-hex raw token; returns rotated token or typed failure reason. (4) Error/Security: Raw refresh tokens never touch PostgreSQL; replay compromises zero future sessions. (5) Tests: Verified in tests/unit/ftx-auth-001.test.ts (REFRESH_TOKEN_REUSED assertion).
 
-**Sample 2 — Keyed HMAC-SHA256 OTP Verification & Atomic Single-Use Consumption** (`src/auth/recovery.ts`)
+**Sample 2 — Domain-Separated HMAC-SHA256 OTP Verification & Atomic Consumption** (`src/auth/recovery.ts`)
 
 ```typescript
-export function computeOtpHmac(challengeId: string, userId: string, purpose: string, otp: string): string {
-  const key = process.env.OTP_HMAC_SECRET || getJwtSecret();
-  return crypto.createHmac('sha256', key)
-    .update(`${challengeId}:${userId}:${purpose}:${otp.trim()}`).digest('hex');
+export function computeOtpHmac(challengeId: string, purpose: RecoveryPurpose, otp: string): string {
+  return crypto
+    .createHmac('sha256', getOtpHmacSecret())
+    .update(`${challengeId}:${purpose}:${otp.trim()}`, 'utf8')
+    .digest('hex');
 }
 
 // Inside verifyPasswordRecoveryOtp(challengeId, submittedOtp):
-const expectedBuf = Buffer.from(challenge.otpHmac, 'hex');
-const actualBuf = Buffer.from(computeOtpHmac(challenge.id, challenge.userId, challenge.purpose, otp), 'hex');
-const matches = expectedBuf.length === actualBuf.length && crypto.timingSafeEqual(expectedBuf, actualBuf);
+const expectedHex = challenge.otpHmac;
+const actualHex = computeOtpHmac(challenge.id, challenge.purpose as RecoveryPurpose, otp);
+const matches = timingSafeHexEqual(expectedHex, actualHex);
 
 if (!matches) {
   const nextFailed = challenge.failedAttempts + 1;
@@ -886,7 +961,7 @@ const [consumed] = await db.update(recoveryChallenges).set({ consumedAt: now })
   .where(and(eq(recoveryChallenges.id, challenge.id), isNull(recoveryChallenges.consumedAt))).returning();
 ```
 
-Walkthrough & Security Analysis (src/auth/recovery.ts): (1) Purpose: Verifies 6-digit account recovery OTPs without storing plaintext codes or permitting brute-force/race attacks. (2) Logical Blocks: Binds challengeId, userId, and purpose into a keyed HMAC-SHA256 digest; compares digests in constant time via crypto.timingSafeEqual; increments failedAttempts and locks after 5 misses; executes atomic conditional UPDATE ... WHERE consumed_at IS NULL RETURNING * so 10 concurrent identical POST requests yield exactly one resetAuthorization token. (3) Tests: Verified by 10-way Promise.all concurrency test in tests/unit/ftx-auth-001.test.ts.
+Walkthrough & Security Analysis (src/auth/recovery.ts): (1) Purpose: Verifies 6-digit account recovery OTPs without storing plaintext codes or permitting brute-force/race attacks. (2) Logical Blocks: Derives a domain-separated HMAC key via getOtpHmacSecret(), binds challengeId and purpose into computeOtpHmac(), compares digests via crypto.timingSafeEqual, locks after 5 failed attempts, and executes atomic conditional UPDATE ... WHERE consumed_at IS NULL RETURNING * so 10 concurrent identical POST requests yield exactly one resetAuthorization token. (3) Anti-Enumeration: Unknown identifiers receive a HMAC-tagged synthetic challenge UUID so response timing and payload shape are indistinguishable. (4) Tests: Verified in tests/unit/ftx-auth-001.test.ts and tests/e2e/auth-recovery.spec.ts.
 
 **Sample 3 — Atomic Redis Lua Token-Bucket Rate Limiter** (`src/rate-limit/redis.ts`)
 
@@ -922,7 +997,7 @@ else
 end`;
 ```
 
-Walkthrough & Security Analysis (src/rate-limit/redis.ts): (1) Purpose: Enforces exact per-route RPM limits across concurrent gateway workers without read-modify-write race conditions. (2) Logical Blocks: Redis executes the entire HMGET -> fractional token replenishment -> conditional decrement -> HMSET -> PEXPIRE sequence atomically on its single command thread. (3) Fail-Closed Behavior: In production mode, if Redis is unreachable, checkRateLimit() throws/denies with HTTP 503 rather than silently allowing unlimited traffic. (4) Tests: Verified in tests/unit/rate-limit.test.ts and tests/e2e/api-studio.spec.ts.
+Walkthrough & Security Analysis (src/rate-limit/redis.ts): (1) Purpose: Enforces exact per-route RPM limits across concurrent gateway workers without read-modify-write race conditions. (2) Logical Blocks: Redis executes the entire HMGET -> fractional token replenishment -> conditional decrement -> HMSET -> PEXPIRE sequence atomically on key ratelimit:{routeId}:{identifier}. (3) Fail-Closed Behavior: In production mode (REDIS_FAILURE_BEHAVIOR=fail-closed), if Redis is unreachable, rate-limit evaluation rejects rather than silently allowing unbounded traffic. (4) Tests: Verified in tests/unit/rate-limit.test.ts and tests/e2e/api-studio.spec.ts.
 
 **Sample 4 — Gateway Pre-Auth Enforcement Ordering & Header Sanitization** (`src/gateway/index.ts`)
 
@@ -937,11 +1012,11 @@ if (!keyAuth.valid) {
   enqueueMetric({ routeId: route.id, latencyMs: Date.now() - start, statusCode: 401, requestId });
   return res.status(401).json({ error: keyAuth.reason || 'Invalid or missing API key' });
 }
-// 2. WAF Inspection (URI-decoded SQLi / XSS / Path Traversal)
+// 2. WAF Inspection (Multi-decoded SQLi / XSS / Path Traversal in src/threat-detection/index.ts)
 if (policy?.enableWaf) {
-  const threat = inspectRequestForThreats(req);
-  if (threat.blocked) {
-    await recordSecurityEvent(route.id, requestId, threat.type, threat.evidence);
+  const threat = detectThreats(req);
+  if (threat.detected) {
+    enqueueSecurityEvent({ routeId: route.id, requestId, threatType: threat.type, payload: threat.evidence });
     return res.status(403).json({ error: 'Blocked by FortiX WAF', threatType: threat.type });
   }
 }
@@ -952,7 +1027,7 @@ if (/^Bearer\s+fx_(live|test)_/i.test(String(proxyReq.headers['authorization'] |
 }
 ```
 
-Walkthrough & Security Analysis (src/gateway/index.ts): (1) Purpose: Ensures unauthenticated or malicious requests are rejected immediately (401/403/429) without consuming upstream sockets or triggering chaos delays, and prevents credential leakage to external servers. (2) Interactions: Coordinates src/lib/ssrf.ts, src/gateway/key-cache.ts, src/security/waf.ts, src/rate-limit/redis.ts, and src/studio/target-handler.ts. (3) Tests: Verified in tests/security/auth.spec.ts and tests/security/all.spec.ts.
+Walkthrough & Security Analysis (src/gateway/index.ts): (1) Purpose: Ensures unauthenticated or malicious requests are rejected immediately (401/403/429) without consuming upstream sockets or triggering chaos delays, and prevents credential leakage to external servers. (2) Interactions: Coordinates src/gateway/ssrf.ts, HashedApiKeyCache + src/lib/key-invalidation.ts, src/threat-detection/index.ts, src/rate-limit/redis.ts, and src/studio/target-handler.ts. (3) Tests: Verified in tests/security/auth.spec.ts and tests/security/all.spec.ts.
 
 **Sample 5 — Telemetry Flush Barrier & Non-Vacuous Three-Phase Verification** (`src/verification/engine.ts`)
 
@@ -1006,23 +1081,49 @@ export async function handleStudioUpstreamRequest(params: StudioDispatchInput): 
 
 Walkthrough & Security Analysis (src/studio/target-handler.ts): (1) Purpose: Executes dynamic REST CRUD endpoints inside FortiX for API Studio resources while enforcing strict project-level tenant isolation and field-type schema validation. (2) Tests: Verified in tests/unit/api-studio.test.ts and tests/e2e/api-studio.spec.ts.
 
+**Sample 7 — Allowlisted Video Source Validation & Monotonic Tutorial Progress** (`src/learning/video-validator.ts & src/api/learning.ts`)
+
+```typescript
+export function validateVideoSource(provider: VideoProvider, reference?: string | null): VideoValidationResult {
+  if (provider === 'none') return { valid: true, sanitizedReference: null };
+  if (!reference || /javascript:|data:|vbscript:/i.test(reference)) {
+    return { valid: false, error: 'Unsafe or empty video reference rejected' };
+  }
+  if (provider === 'self_hosted') {
+    return /^\/[a-zA-Z0-9/_.-]+\.(mp4|webm)$/i.test(reference)
+      ? { valid: true, sanitizedReference: reference }
+      : { valid: false, error: 'Self-hosted videos must use relative .mp4/.webm paths' };
+  }
+  if (provider === 'youtube_nocookie') {
+    const parsed = new URL(reference);
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'www.youtube-nocookie.com') {
+      return { valid: false, error: 'Only https://www.youtube-nocookie.com/embed/* is permitted' };
+    }
+    return { valid: true, sanitizedReference: parsed.toString() };
+  }
+  return validateHttpsAllowlist(reference);
+}
+```
+
+Walkthrough & Security Analysis (src/learning/video-validator.ts & src/api/learning.ts): (1) Purpose: Prevents arbitrary iframe/script injection in the In-App Video Learning Center (FTX-LEARN-001) while persisting per-user watch progress. (2) Security: Rejects javascript:/data: URIs and unapproved third-party origins; ADMIN RBAC is required for catalog mutations, while progress updates bind strictly to req.user.id. (3) Tests: Verified in tests/unit/learning-center.test.ts and tests/e2e/learning-center.spec.ts.
+
 ### 4.2.1 Comprehensive 16-Domain Security Implementation Audit
 
 - 1. Authentication: Dual-identifier login (email or verified E.164 phone) with dummy bcrypt comparison on unknown users to mitigate timing enumeration.
-- 2. Authorization & RBAC: Role hierarchy (ADMIN, OPERATOR, DEVELOPER, VIEWER) enforced server-side via requireRole() and verifyProjectAccess() BOLA guards.
+- 2. Authorization & RBAC: Role hierarchy (ADMIN, DEVELOPER, VIEWER) enforced server-side via src/middleware/entitlements.ts, src/api/admin.ts, and project BOLA guards.
 - 3. Password Handling: Hashed exclusively with bcryptjs (cost factor 10); never stored in localStorage, sessionStorage, cookies, or logs.
-- 4. API-Key Protection: Raw fx_live_<id>_<secret> shown once; DB stores bcrypt secret_hash; gateway caches SHA-256 digest with secretHash stripped and Redis Pub/Sub eviction.
+- 4. API-Key Protection: Raw fx_live_<id>_<secret> shown once; DB stores bcrypt secret_hash; gateway caches SHA-256 digest with secretHash stripped and fortix:api-key:revoked:v1 Pub/Sub eviction.
 - 5. Session Management: Short-lived access JWT in HttpOnly cookie + rotating refresh token families (12h standard / 30d Remember Me) with reuse detection and global revocation on password reset.
-- 6. Input Validation: Strict Zod schemas on every REST route plus Studio dynamic field validation.
+- 6. Input Validation: Strict Zod schemas on every REST route, Studio dynamic field validation, and allowlisted tutorial media URL validation.
 - 7. Rate Limiting: Express auth rate limiter on /api/auth/* and atomic Redis Lua token bucket on /proxy/:routeId/*.
-- 8. SQL Injection Prevention: 100% parameterized queries via Drizzle ORM plus gateway WAF SQLi signature blocking.
-- 9. SSRF Protection: Blocks private RFC 1918, loopback, link-local/cloud metadata (169.254.169.254), and DNS-rebinding resolutions via safeDnsLookup.
+- 8. SQL Injection Prevention: 100% parameterized queries via Drizzle ORM plus gateway WAF multi-decoded SQLi signature blocking.
+- 9. SSRF Protection: Blocks private RFC 1918, loopback, link-local/cloud metadata (169.254.169.254), and DNS-rebinding resolutions via safeDnsLookup (src/gateway/ssrf.ts).
 - 10. CORS & CSRF: Strict origin allowlist with credentials support and double-submit CSRF validation (fortix_csrf cookie matched against X-CSRF-Token header) on cookie-authenticated mutations.
-- 11. Multi-Tenant Isolation: Dual-layer enforcement combining application-level project ownership checks and PostgreSQL Row-Level Security (RLS) policies.
+- 11. Multi-Tenant Isolation: Dual-layer enforcement combining application-level project ownership checks and PostgreSQL Row-Level Security (RLS) policies across 17 tenant/user tables.
 - 12. Secret Management: Fail-fast startup checks in production requiring cryptographic JWT_SECRET, OTP_HMAC_SECRET, DATABASE_URL, and REDIS_URL.
 - 13. Logging & Redaction: Pino logger configured with explicit redact paths stripping authorization headers, cookies, password fields, OTPs, and raw keys.
 - 14. Experiment Authorization & Blast Radius: Experiments execute only against routes owned by the caller project, post-authentication, with hard duration caps (<=60s) and guaranteed cleanup.
-- 15. Resource Limits: JSON body size caps (1 MB), bounded in-memory caches (max 5,000 API keys), and upstream proxy socket timeouts.
+- 15. Resource Limits: JSON body size caps, bounded in-memory caches (max 5,000 API keys), and upstream proxy socket timeouts.
 - 16. Error Handling & Known Security Boundaries: Central error middleware suppresses stack traces in production. Honest Limitation Disclosure: FortiX does not yet implement hardware WebAuthn/FIDO2 MFA, kernel-level L3/L4 DDoS mitigation, or external KMS envelope encryption; SMS/Email OTP delivery in production depends on configuring external HTTPS provider webhooks.
 
 ## 4.3 Steps of the Execution Project and Navigation
@@ -1040,14 +1141,14 @@ cp .env.example .env
 npm run dev
 
 # 3. Type-Check, Production Bundle, and Multi-Container Docker Compose Execution
-npm run lint          # Executes tsc --noEmit
+npm run lint          # Executes tsc --noEmit (0 errors)
 npm run build         # Builds Vite SPA + bundles dist/server.cjs & dist/worker.cjs
 docker compose up --build -d
 curl -s http://localhost:8080/api/health/ready
 
 # 4. Automated Verification Suites
-npm test              # Runs 34 Vitest unit & integration suites (261 tests)
-npm run test:e2e      # Runs 12 Playwright browser & security E2E tests
+npm test              # Runs 35 Vitest unit & integration suites (269 passing tests)
+npx playwright test   # Runs 13 Playwright browser & security E2E tests (8 spec files)
 ```
 
 **Table 4.2: Environment Configuration Variables Reference (.env.example — Variable Names Only)**
@@ -1057,9 +1158,9 @@ npm run test:e2e      # Runs 12 Playwright browser & security E2E tests
 | PORT / NODE_ENV | Required | HTTP listener port (3000 in dev) and runtime mode (development \| test \| production). |
 | DATABASE_URL | Prod Required | PostgreSQL 15 connection URI; uses migrated pg-mem sandbox in local dev if omitted. |
 | ENABLE_POSTGRES_RLS | Optional (true) | Activates PostgreSQL Row-Level Security tenant context binding per transaction. |
-| REDIS_URL | Prod Required | Redis 7 connection URI for Lua rate limiter, Streams, Pub/Sub, and BullMQ. |
+| REDIS_URL / REDIS_FAILURE_BEHAVIOR | Prod Required | Redis 7 connection URI and fail-closed production enforcement policy. |
 | JWT_SECRET | Prod Required | 64-byte cryptographic secret signing short-lived operator session JWTs. |
-| OTP_HMAC_SECRET | Prod Recommended | Dedicated secret key for HMAC-SHA256 hashing of 6-digit recovery and phone OTPs. |
+| OTP_HMAC_SECRET | Prod Recommended | Dedicated >=32-char secret key for HMAC-SHA256 hashing of 6-digit recovery and phone OTPs. |
 | REMEMBER_ME_DAYS / SHORT_SESSION_HOURS | Optional (30 / 12) | Configures persistent Remember-Me refresh family lifetime vs standard session lifetime. |
 | AUTH_EMAIL_WEBHOOK_URL / AUTH_SMS_WEBHOOK_URL | Prod Optional | HTTPS provider endpoints for transactional Email and E.164 SMS OTP dispatch. |
 | CORS_ALLOWED_ORIGINS | Prod Required | Comma-separated allowlist of origins permitted to send credentialed requests. |
@@ -1067,12 +1168,13 @@ npm run test:e2e      # Runs 12 Playwright browser & security E2E tests
 ### 4.3.1 End-to-End Evaluation Walkthrough: PROTECT → BREAK → OBSERVE → PROVE → IMPROVE
 
 1. Authenticate (/login): Register an operator account or sign in with Remember Me enabled; observe HttpOnly session cookie establishment without any credentials stored in localStorage.
-2. Provision Self-Contained API (/studio): Open FortiX API Studio, select the "Store Products API (100 INR Records)" template, set rateLimitRpm = 30, enableWaf = true, enableSsrf = true, and copy the one-time scoped fx_live_* API key.
-3. PROTECT — Verify Live Enforcement: In the API Studio Playground, send GET /proxy/:routeId/api/store/products with X-API-Key -> inspect HTTP 200 JSON (100 seeded products). Omit X-API-Key -> observe HTTP 401. Append ?q=' OR 1=1-- -> observe HTTP 403 WAF block recorded in Threats.
-4. BREAK — Execute Controlled Experiment (/experiments): Launch a bounded Latency Injection (latencyMs = 200, durationMs = 2000) or Rate-Limit Burst experiment on the Store Products route.
-5. OBSERVE — Inspect Three-Phase Telemetry (/): Watch real-time Socket.IO updates as the worker records 5 clean BASELINE probes, active INJECTION probes, and 5 post-fault RECOVERY probes.
-6. PROVE — Audit Verdict & Export SHA-256 PDF (/verifications): Inspect the deterministic PASS/FAIL/INCONCLUSIVE verdict comparing expected policy thresholds against observed P50/P95 latency and 429 ratios, then download the SHA-256 stamped PDF compliance report.
-7. IMPROVE — Harden Policy (/security): Adjust RPM quotas or upstream timeout thresholds based on observed P95/429 evidence and re-run verification to confirm remediation.
+2. Follow Guided Onboarding (/learning-center): Optionally open the In-App Video Learning Center to review lifecycle walkthroughs or contextual quick-help steps.
+3. Provision Self-Contained API (/studio): Open FortiX API Studio, select the "Store Products API (100 INR Records)" template, set rateLimitRpm = 30, enableWaf = true, enableSsrf = true, and copy the one-time scoped fx_live_* API key.
+4. PROTECT — Verify Live Enforcement: In the API Studio Playground, send GET /proxy/:routeId/api/store/products with X-API-Key -> inspect HTTP 200 JSON (100 seeded products). Omit X-API-Key -> observe HTTP 401. Append ?q=' OR 1=1-- -> observe HTTP 403 WAF block recorded in /threats.
+5. BREAK — Execute Controlled Experiment (/experiments): Launch a bounded Latency Injection (latencyMs = 200, durationMs = 2000) or Rate-Limit Burst experiment on the Store Products route.
+6. OBSERVE — Inspect Three-Phase Telemetry (/ & /topology): Watch real-time Socket.IO updates as the worker records 5 clean BASELINE probes, active INJECTION probes, and 5 post-fault RECOVERY probes.
+7. PROVE — Audit Verdict & Export SHA-256 PDF (/verifications): Inspect the deterministic PASS/FAIL/INCONCLUSIVE verdict comparing expected policy thresholds against observed P50/P95 latency and 429 ratios, then download the SHA-256 stamped PDF compliance report.
+8. IMPROVE — Harden Policy (/security & /resilience): Adjust RPM quotas or upstream timeout thresholds based on observed P95/429 evidence and re-run verification to confirm posture improvement.
 
 ---
 
@@ -1080,24 +1182,24 @@ npm run test:e2e      # Runs 12 Playwright browser & security E2E tests
 
 ## 5.1 Importance of the Worked-Out Tasks
 
-FortiX demonstrates that API security and service resilience become trustworthy only when gateway enforcement, controlled fault injection, synchronized telemetry, and deterministic SLA verification operate as a single closed-loop system. Rather than building fifteen disconnected dashboard widgets, engineering effort was concentrated on hardening the critical path from authentication and request proxying to non-vacuous evidence generation.
+FortiX demonstrates that API security and service resilience become trustworthy only when gateway enforcement, controlled fault injection, synchronized telemetry, and deterministic SLA verification operate as a single closed-loop system. Engineering effort was concentrated on hardening the critical path from authentication and request proxying to non-vacuous evidence generation and guided operator onboarding.
 
 **Table 5.1: Summary of Completed Engineering Objectives and Verification Outcomes**
 
 | Project Objective | Final Status | Empirical Evidence in Repository |
 | --- | --- | --- |
-| Hardened Auth, Remember-Me & OTP Recovery (FTX-AUTH-001) | Completed & Verified | HttpOnly session + rotating refresh families, reuse detection, 6-digit HMAC OTP recovery, verified phone SMS gate; 7 unit + browser E2E tests passing. |
-| Multi-Layered Reverse-Proxy Protection | Completed & Verified | Pre-auth ordering, SHA-256 key cache + Pub/Sub revocation, URI-decoded WAF, SSRF/DNS-rebind guard, and Redis Lua token bucket. |
+| Hardened Auth, Remember-Me & OTP Recovery (FTX-AUTH-001) | Completed & Verified | HttpOnly session + rotating refresh families, reuse detection, 6-digit HMAC OTP recovery, verified phone SMS gate; verified in ftx-auth-001.test.ts & auth-recovery.spec.ts. |
+| Multi-Layered Reverse-Proxy Protection | Completed & Verified | Pre-auth ordering, SHA-256 key cache + Pub/Sub revocation, multi-decoded WAF, SSRF/DNS-rebind guard, and Redis Lua token bucket. |
 | Zero-Friction API Studio (100-Product Seed) | Completed & Verified | Instant Store Products CRUD API, schema validation, gateway binding, and OpenAPI 3.0.3 export verified in api-studio.spec.ts. |
 | Defect-Free Deterministic Verification Engine | Completed & Verified | Eliminated telemetry flush races, vacuous 0-sample passes, tautological verdicts, and missing baseline/recovery windows. |
-| Tamper-Evident Compliance Reporting | Completed & Verified | Server-side PDFKit generation with SHA-256 artifact integrity verification and HMAC-signed webhooks. |
+| Tamper-Evident Reporting & Guided Learning Center | Completed & Verified | Server-side PDFKit generation with SHA-256 artifact digests, HMAC webhooks, and FTX-LEARN-001 video tutorial center with progress tracking. |
 
 ## 5.2 Further Enhancement in Future
 
 The following capabilities are explicitly classified as planned future enhancements beyond the current B.Tech submission and are not claimed as implemented features:
 
-- Hardware-Backed Multi-Factor Authentication (WebAuthn / Passkeys): Extending FTX-AUTH-001 with FIDO2 passkey challenges for privileged ADMIN and OPERATOR accounts.
-- Distributed W3C OpenTelemetry Tracing: Propagating traceparent headers across gateway hops to visualize downstream microservice flamegraphs.
+- Hardware-Backed Multi-Factor Authentication (WebAuthn / Passkeys): Extending FTX-AUTH-001 with FIDO2 passkey challenges for privileged ADMIN and DEVELOPER accounts.
+- Distributed W3C OpenTelemetry Tracing: Propagating traceparent headers across multi-hop downstream microservices for end-to-end distributed flamegraphs.
 - Mutual TLS (mTLS) Upstream Client Certificates: Authenticating gateway-to-upstream hops using per-project X.509 client certificates managed via an external KMS.
 - Additional Chaos Primitives: Controlled response-body schema corruption, bandwidth throttling, and selective DNS failure simulation.
 - Kubernetes Operator & Horizontal Pod Autoscaling (HPA): Packaging stateless api and worker deployments as Custom Resource Definitions (CRDs) for automated CI/CD regression gating.
@@ -1116,27 +1218,27 @@ The following capabilities are explicitly classified as planned future enhanceme
 6. A. Basiri et al., "Chaos Engineering," IEEE Software, vol. 33, no. 3, pp. 35–41, May–Jun. 2016, doi: 10.1109/MS.2016.60.
 7. R. Natella, D. Cotroneo, and H. S. Madeira, "Assessing Dependability with Software Fault Injection: A Survey," ACM Computing Surveys, vol. 48, no. 3, Art. no. 44, Feb. 2016, doi: 10.1145/2841425.
 8. V. Heorhiadi, S. Rajagopalan, H. Jamjoom, M. K. Reiter, and V. Sekar, "Gremlin: Systematic Resilience Testing of Microservices," in Proc. IEEE 36th Int. Conf. Distributed Computing Systems (ICDCS), Nara, Japan, 2016, pp. 57–66, doi: 10.1109/ICDCS.2016.11.
-9. OWASP Foundation, "OWASP API Security Top 10 — 2023," OWASP.org, 2023. [Online]. Available: https://owasp.org/API-Security/editions/2023/en/0x11-t10/. [Accessed: Nov. 03, 2026].
-10. OWASP Foundation, "OWASP Application Security Verification Standard (ASVS) v4.0.3," OWASP.org, 2021. [Online]. Available: https://owasp.org/www-project-application-security-verification-standard/. [Accessed: Nov. 03, 2026].
-11. OWASP Foundation, "Authentication, Session Management, Forgot Password, and SSRF Prevention Cheat Sheets," OWASP Cheat Sheet Series. [Online]. Available: https://cheatsheetseries.owasp.org/. [Accessed: Nov. 03, 2026].
+9. OWASP Foundation, "OWASP API Security Top 10 — 2023," OWASP.org, 2023. [Online]. Available: https://owasp.org/API-Security/editions/2023/en/0x11-t10/. [Accessed: Nov. 04, 2026].
+10. OWASP Foundation, "OWASP Application Security Verification Standard (ASVS) v4.0.3," OWASP.org, 2021. [Online]. Available: https://owasp.org/www-project-application-security-verification-standard/. [Accessed: Nov. 04, 2026].
+11. OWASP Foundation, "Authentication, Session Management, Forgot Password, and SSRF Prevention Cheat Sheets," OWASP Cheat Sheet Series. [Online]. Available: https://cheatsheetseries.owasp.org/. [Accessed: Nov. 04, 2026].
 12. R. Fielding, M. Nottingham, and J. Reschke, "HTTP Semantics," Internet Engineering Task Force (IETF), RFC 9110, Jun. 2022. [Online]. Available: https://www.rfc-editor.org/rfc/rfc9110.
 13. M. Jones, J. Bradley, and N. Sakimura, "JSON Web Token (JWT)," Internet Engineering Task Force (IETF), RFC 7519, May 2015. [Online]. Available: https://www.rfc-editor.org/rfc/rfc7519.
-14. OpenJS Foundation, "Node.js v22 LTS Documentation (crypto, http, stream)," Nodejs.org. [Online]. Available: https://nodejs.org/docs/latest-v22.x/api/. [Accessed: Nov. 03, 2026].
-15. Microsoft Corp., "TypeScript 5.8 Handbook and Compiler Specification," TypeScriptlang.org. [Online]. Available: https://www.typescriptlang.org/docs/. [Accessed: Nov. 03, 2026].
-16. OpenJS Foundation, "Express 4.x API Reference," Expressjs.com. [Online]. Available: https://expressjs.com/en/4x/api.html. [Accessed: Nov. 03, 2026].
-17. Meta Platforms, Inc., "React 19 Official Documentation," React.dev. [Online]. Available: https://react.dev/. [Accessed: Nov. 03, 2026].
-18. PostgreSQL Global Development Group, "PostgreSQL 15 Documentation — Chapter 5.8 Row Security Policies & JSONB Types," Postgresql.org. [Online]. Available: https://www.postgresql.org/docs/15/ddl-rowsecurity.html. [Accessed: Nov. 03, 2026].
-19. Drizzle Team, "Drizzle ORM PostgreSQL & Drizzle Kit Migration Documentation," Orm.drizzle.team. [Online]. Available: https://orm.drizzle.team/docs/overview. [Accessed: Nov. 03, 2026].
-20. Redis Ltd., "Redis 7 Commands: EVAL (Lua Scripting), Streams (XADD/XREADGROUP), and Pub/Sub," Redis.io. [Online]. Available: https://redis.io/docs/latest/develop/. [Accessed: Nov. 03, 2026].
-21. Taskforce.sh Inc., "BullMQ Distributed Queue & Worker Documentation," Docs.bullmq.io. [Online]. Available: https://docs.bullmq.io/. [Accessed: Nov. 03, 2026].
-22. OpenAPI Initiative, "OpenAPI Specification v3.0.3," Spec.openapis.org. [Online]. Available: https://spec.openapis.org/oas/v3.0.3. [Accessed: Nov. 03, 2026].
-23. Vitest Team and Microsoft Corp., "Vitest Testing Framework & Playwright End-to-End Testing Documentation," Vitest.dev / Playwright.dev. [Online]. Available: https://playwright.dev/docs/intro. [Accessed: Nov. 03, 2026].
+14. OpenJS Foundation, "Node.js v22 LTS Documentation (crypto, http, stream)," Nodejs.org. [Online]. Available: https://nodejs.org/docs/latest-v22.x/api/. [Accessed: Nov. 04, 2026].
+15. Microsoft Corp., "TypeScript 5.8 Handbook and Compiler Specification," TypeScriptlang.org. [Online]. Available: https://www.typescriptlang.org/docs/. [Accessed: Nov. 04, 2026].
+16. OpenJS Foundation, "Express 4.x API Reference," Expressjs.com. [Online]. Available: https://expressjs.com/en/4x/api.html. [Accessed: Nov. 04, 2026].
+17. Meta Platforms, Inc., "React 19 Official Documentation," React.dev. [Online]. Available: https://react.dev/. [Accessed: Nov. 04, 2026].
+18. PostgreSQL Global Development Group, "PostgreSQL 15 Documentation — Chapter 5.8 Row Security Policies & JSONB Types," Postgresql.org. [Online]. Available: https://www.postgresql.org/docs/15/ddl-rowsecurity.html. [Accessed: Nov. 04, 2026].
+19. Drizzle Team, "Drizzle ORM PostgreSQL & Drizzle Kit Migration Documentation," Orm.drizzle.team. [Online]. Available: https://orm.drizzle.team/docs/overview. [Accessed: Nov. 04, 2026].
+20. Redis Ltd., "Redis 7 Commands: EVAL (Lua Scripting), Streams (XADD/XREADGROUP), and Pub/Sub," Redis.io. [Online]. Available: https://redis.io/docs/latest/develop/. [Accessed: Nov. 04, 2026].
+21. Taskforce.sh Inc., "BullMQ Distributed Queue & Worker Documentation," Docs.bullmq.io. [Online]. Available: https://docs.bullmq.io/. [Accessed: Nov. 04, 2026].
+22. OpenAPI Initiative, "OpenAPI Specification v3.0.3," Spec.openapis.org. [Online]. Available: https://spec.openapis.org/oas/v3.0.3. [Accessed: Nov. 04, 2026].
+23. Vitest Team and Microsoft Corp., "Vitest Testing Framework & Playwright End-to-End Testing Documentation," Vitest.dev / Playwright.dev. [Online]. Available: https://playwright.dev/docs/intro. [Accessed: Nov. 04, 2026].
 
 ---
 
 # Appendix A — API DOCUMENTATION
 
-## A.1 Implemented Control-Plane, Authentication, Studio, and Gateway REST Endpoints
+## A.1 Implemented Control-Plane, Authentication, Studio, Learning, and Gateway REST Endpoints
 
 **Table A.1: Master FortiX HTTP API Specification (Verified from src/api/* and src/gateway/index.ts)**
 
@@ -1152,14 +1254,17 @@ The following capabilities are explicitly classified as planned future enhanceme
 | POST | /api/control/account/phone/* | JWT + CSRF | /phone/request-otp & /phone/confirm-otp enroll and verify unique E.164 phone numbers for SMS recovery. |
 | GET/POST | /api/control/projects | JWT Session | Lists tenant-owned projects or creates an isolated project workspace (201). |
 | GET/POST/DELETE | /api/control/routes | JWT + Project BOLA | Registers or deletes gateway routes; validates targetUrl against SSRF rules. |
-| GET/POST/DELETE | /api/control/keys | JWT + Project BOLA | Issues scoped fx_live_* API keys (rawKey returned once) or revokes keys with Redis Pub/Sub broadcast. |
+| GET/POST/DELETE | /api/control/keys | JWT + Project BOLA | Issues scoped fx_live_* API keys (rawKey returned once) or revokes keys with fortix:api-key:revoked:v1 broadcast. |
 | GET/POST/PUT | /api/control/policies | JWT + Project BOLA | Configures rateLimitRpm, enableWaf, and enableSsrf per route. |
-| GET/POST | /api/control/studio/apis | JWT + Project BOLA | Creates self-contained API Studio APIs (including 100-record Store Products template) & exports /openapi. |
+| GET | /api/control/metrics & /events | JWT + Project BOLA | Returns time-series latency/status telemetry and blocked WAF/SSRF threat events for the active project. |
+| GET | /api/control/topology | JWT + Project BOLA | Returns live route, policy, Studio target, and upstream health graph nodes for the active project. |
+| GET/POST | /api/control/studio/apis | JWT + Project BOLA | Creates self-contained API Studio APIs (including 100-record Store Products template) & exports /:id/openapi. |
 | POST | /api/control/experiments | JWT + DEVELOPER+ | Queues bounded latency, error_5xx, timeout, or rate_limit_burst experiment (201 QUEUED); /:id/cancel aborts. |
 | GET | /api/control/verifications | JWT + Project BOLA | Returns deterministic PASS / FAIL / INCONCLUSIVE verdicts with 3-phase telemetry summaries. |
-| GET | /api/control/reports/:id/pdf | JWT + Project BOLA | Streams server-generated PDFKit compliance report verified against SHA-256 digest. |
+| POST / GET | /api/control/reports/:verificationId | JWT + Project BOLA | Generates & persists PDFKit report with X-FortiX-Artifact-SHA256; /reports/artifacts/:artifactId downloads stored PDF. |
+| GET / PUT | /api/control/learning/* | JWT Session (ADMIN write) | GET /tutorials & /:slug list guided tutorials; PUT /progress/:tutorialId saves watch cursor & completion. |
 | ALL | /proxy/:routeId/* | X-API-Key (Gateway) | Enforces SSRF, Key Auth (401), WAF (403), Lua Rate Limit (429), Post-Auth Faults, and Upstream/Studio Proxy. |
-| GET | /api/health/ready | Public Readiness | Verifies PostgreSQL and Redis liveness; returns 200 healthy or 503 degraded in strict mode. |
+| GET | /api/health/live & /ready | Public Health Probes | Verifies process liveness and PostgreSQL/Redis readiness; returns 200 healthy or 503 degraded in strict mode. |
 
 ---
 
@@ -1167,18 +1272,19 @@ The following capabilities are explicitly classified as planned future enhanceme
 
 ## B.1 Versioned Drizzle SQL Migrations and Constraint Summary
 
-**Table B.1: Chronological Drizzle SQL Migration Ledger (drizzle/meta/_journal.json)**
+**Table B.1: Chronological Drizzle SQL Migration Ledger (Verified from drizzle/meta/_journal.json)**
 
 | Idx | Migration SQL File | Schema Objects & Constraints Introduced |
 | --- | --- | --- |
-| 0 | 0000_ambitious_rhino.sql | Bootstraps core tables: users, organizations, projects, api_routes, api_keys, security_policies, experiments, verifications, metric_logs, security_events. |
-| 1 | 0001_production_hardening.sql | Adds refresh_tokens, webhooks, webhook_deliveries, and composite telemetry/threat indexes. |
-| 2 | 0002_settings_and_audit.sql | Adds project_settings (1:1 versioned JSONB) and append-only audit_logs with diff tracking. |
-| 3 | 0003_auth_verification_and_reset.sql | Adds email_verified on users and single-use auth_action_tokens table with UNIQUE(token_hash). |
-| 4 | 0004_autonomous_workflows.sql | Adds workflow_runs for multi-step verification timeline tracking and cleanup status auditing. |
-| 5 | 0005_api_studio.sql | Adds studio_apis, studio_resources, and studio_records with composite unique constraints for API Studio. |
+| 0 | 0000_dizzy_moon_knight.sql | Bootstraps initial 12 core tables: users, organizations, projects, refresh_tokens, api_routes, api_keys, security_policies, experiments, verifications, metric_logs, security_events, webhooks + route_time_idx. |
+| 1 | 0001_spicy_jackpot.sql | Adds project_settings (1:1 versioned JSONB configuration), append-only audit_logs, audit_project_time_idx, and threat_route_time_idx. |
+| 2 | 0002_webhook_deliveries.sql | Adds webhook_deliveries delivery audit table with composite indexes on (webhook_id, created_at) and (project_id, created_at). |
+| 3 | 0003_workflow_runs.sql | Adds workflow_runs for multi-step autonomous verification timeline tracking, deterministic verdicts, and cleanup status auditing. |
+| 4 | 0004_auth_security_tokens.sql | Adds email_verified on users and single-use auth_action_tokens table with UNIQUE(token_hash) and (user_id, purpose) index. |
+| 5 | 0005_api_studio.sql | Adds studio_apis, studio_resources, and studio_records with composite unique constraints for FortiX API Studio. |
 | 6 | 0006_auth_sessions_and_recovery.sql | FTX-AUTH-001: Adds phone_e164/phone_verified on users, family rotation & reuse detection columns on refresh_tokens, and recovery_challenges OTP table. |
-| RLS | postgres_rls_policies.sql | Enables and forces PostgreSQL Row-Level Security (RLS) policies across all 21 tables bound to app.current_user_id. |
+| 7 | 0007_learning_center.sql | FTX-LEARN-001: Adds learning_tutorials (24 columns, unique slug, lifecycle/category sort indexes) and learning_progress (user-scoped unique progress table). |
+| RLS | postgres_rls_policies.sql | Creates non-superuser role fortix_app (NOBYPASSRLS) and enforces PostgreSQL Row-Level Security (RLS) policies across 17 tenant-owned and user-owned tables bound to app.current_user_id. |
 
 ---
 
@@ -1186,16 +1292,16 @@ The following capabilities are explicitly classified as planned future enhanceme
 
 ## C.1 Verified Automated Test Execution Evidence (Vitest, Playwright, and TypeScript Build)
 
-All test figures reported below come strictly from actual command executions performed against the current FortiX branch during release verification on November 03, 2026.
+All test figures reported below come strictly from actual command executions performed against the current FortiX codebase during verification on November 04, 2026. Zero synthetic pass counts or unexecuted benchmarks are included.
 
 **Table C.1: Actual Executed Validation Summary Across Type-Checking, Unit/Integration, and Browser E2E Suites**
 
 | Validation Tier | Command Executed | Actual Result | Verified Coverage Scope |
 | --- | --- | --- | --- |
-| TypeScript Static Analysis | npm run lint (tsc --noEmit) | 0 Errors (PASS) | Full backend, gateway, verification, Studio, and React 19 TSX type safety. |
+| TypeScript Static Analysis | npm run lint (tsc --noEmit) | 0 Errors (PASS) | Full backend, gateway, verification, Studio, Learning Center, and React 19 TSX type safety. |
 | Production Build Bundle | npm run build | PASS (SPA + CJS) | Vite production bundle + esbuild dist/server.cjs & dist/worker.cjs. |
-| Vitest Unit & Integration | npm test (vitest run) | 34 / 34 Suites Passed (261 / 261 Tests) | Auth/OTP concurrency (ftx-auth-001.test.ts), migrations (21 tables), WAF, SSRF, Lua rate limit, verification defects, API Studio, tenant isolation, webhooks. |
-| Playwright E2E & Security | npx playwright test | 12 / 12 Tests Passed (25.4s) | Browser Login + Remember Me + OTP Reset (auth-recovery.spec.ts), 100-Product API Studio lifecycle, Golden Demo, Worker bounds, PDF report, BOLA/SSRF, WebSocket isolation. |
+| Vitest Unit & Integration | npx vitest run | 35 / 35 Suites Passed (269 / 269 Tests, 109.8s) | Auth/OTP concurrency (ftx-auth-001.test.ts), migrations (23 tables), Postgres RLS, WAF, SSRF, Lua rate limit, verification defects, API Studio, Learning Center, webhooks. |
+| Playwright E2E & Security | npx playwright test | 13 / 13 Tests Passed (8 Spec Files, 46.3s) | Browser Login + Remember Me + OTP Reset (auth-recovery.spec.ts), 100-Product API Studio, Golden Demo, Learning Center 10-step E2E, Worker bounds, PDF report, BOLA/SSRF, WebSocket isolation. |
 | External Live SMTP / Carrier SMS | N/A (Webhook Mock Verified) | Not Run Against Paid Carrier | HTTP 2xx/500 provider contract verified locally; live carrier delivery requires external deployment credentials. |
 
 ---
@@ -1210,20 +1316,23 @@ All test figures reported below come strictly from actual command executions per
 FortiX/
 ├── server.ts                       # Express + HTTP Proxy + Socket.IO + Vite dev/prod entrypoint
 ├── Dockerfile / docker-compose.yml # Multi-stage non-root Alpine image & 4-service compose stack
-├── drizzle/                        # Versioned SQL migrations (0000..0006) & postgres_rls_policies.sql
+├── drizzle/                        # 8 versioned SQL migrations (0000..0007) & postgres_rls_policies.sql
 ├── src/
-│   ├── api/                        # Control-plane routers (auth, account, studio, routes, keys, policies, experiments, verifications, reports, settings)
+│   ├── api/                        # 24 routers (auth, account, admin, studio, learning, routes, keys, policies, experiments, verifications, reports, topology, webhooks, settings)
 │   ├── auth/                       # FTX-AUTH-001 session rotation (sessions.ts), HMAC OTP (recovery.ts), providers.ts
-│   ├── db/                         # 21-table Drizzle schema (schema.ts) & PostgreSQL/pg-mem + RLS connector
-│   ├── gateway/                    # /proxy/:routeId/* enforcement pipeline & SHA-256 HashedApiKeyCache
-│   ├── security/ & lib/            # WAF SQLi/XSS inspector, SSRF + safeDnsLookup, RBAC, CSRF/CORS, JWT security, Pino logger
+│   ├── db/                         # 23-table Drizzle schema (schema.ts), migrate.ts & PostgreSQL/pg-mem + RLS connector
+│   ├── gateway/                    # /proxy/:routeId/* pipeline (index.ts), HashedApiKeyCache & ssrf.ts
+│   ├── threat-detection/ & lib/    # Multi-decoded WAF inspector, cors-csrf, jwt-security, key-invalidation, telemetry, logger
+│   ├── middleware/                 # auth.ts, entitlements.ts (RBAC), project.ts (BOLA guard)
 │   ├── rate-limit/                 # Atomic Redis Lua token-bucket script (redis.ts)
-│   ├── studio/                     # FortiX API Studio 100-Product seed, CRUD target-handler & OpenAPI 3.0 generator
-│   ├── experiments/ & telemetry/   # BullMQ 3-phase probe worker & Redis Stream telemetry batcher + flush barrier
-│   ├── verification/ & reports/    # Deterministic PASS/FAIL/INCONCLUSIVE engine & PDFKit SHA-256 report generator
-│   ├── components/ & pages/        # React 19 UI (Login, PasswordRecovery, Dashboard, ApiStudio, ProtectedApis, SecurityPolicies, Experiments, Verifications, Settings)
-├── tests/                          # 34 Vitest unit/integration suites + Playwright E2E/security specs
-└── docs/                           # Security ADRs (FTX-AUTH-001-ADR.md) & B.Tech Project Report deliverables
+│   ├── studio/                     # 100-Product dataset, schema-validator, target-handler & openapi-generator
+│   ├── learning/                   # FTX-LEARN-001 catalog-seed.ts, video-validator.ts & types.ts
+│   ├── experiments/ & verification/# BullMQ 3-phase probe worker & deterministic SLA verification engine
+│   ├── storage/                    # Local / S3 SHA-256 verification PDF artifact storage
+│   ├── components/ & pages/        # React 19 UI (Login, PasswordRecovery, Dashboard, ApiStudio, APIs, Security, Threats, Experiments, Verifications, Resilience, Topology, LearningCenter, Settings)
+├── scripts/report/                 # Automated Playwright asset capture, PDFKit & OpenXML DOCX builders
+├── tests/                          # 35 Vitest unit/integration suites + 8 Playwright E2E/security spec files
+└── docs/reports/                   # Generated B.Tech Report (.docx, .pdf, .md, diagrams/, screenshots/)
 ```
 
 ---
@@ -1239,8 +1348,8 @@ FortiX/
 | API Gateway & Reverse Proxy | Intermediary HTTP enforcement server (/proxy/:routeId/*) that authenticates, inspects, rate-limits, and sanitizes client requests before forwarding to upstream services. |
 | JSON Web Token (JWT) | Compact HMAC-SHA256 signed session claim token stored in HttpOnly cookies and bound to a refresh session family (sid). |
 | Scoped API Key | Client credential formatted as fx_live_<id>_<secret> whose secret is verified via bcrypt and restricted to explicit project routes and scopes. |
-| Role-Based Access Control (RBAC) | Permission model restricting control-plane operations across ADMIN, OPERATOR, DEVELOPER, and VIEWER roles. |
-| Multi-Tenancy & RLS | Isolation architecture ensuring one organization/project cannot read or mutate another tenant's routes, keys, or logs at both API and PostgreSQL Row-Level Security layers. |
+| Role-Based Access Control (RBAC) | Permission model restricting control-plane operations across ADMIN, DEVELOPER, and VIEWER roles. |
+| Multi-Tenancy & RLS | Isolation architecture ensuring one organization/project cannot read or mutate another tenant's routes, keys, or records at both API and PostgreSQL Row-Level Security layers. |
 | Token-Bucket Rate Limiting | Traffic-policing algorithm executed atomically via Redis Lua script that replenishes capacity at a fixed RPM rate and rejects excess bursts with HTTP 429. |
 | Controlled Fault Injection | Deliberate, bounded introduction of latency, HTTP 5xx errors, or upstream timeouts on authorized routes after authentication to test resilience. |
 | Baseline & Recovery Windows | Pre-fault (5 probes) and post-fault (5 probes) observation intervals used to establish normal behavior and prove clean recovery after chaos stops. |
@@ -1259,7 +1368,7 @@ FortiX/
 | Limitation Area | Current Boundary & Operational Implication |
 | --- | --- |
 | External Email / SMS Gateways | OTP delivery providers (src/auth/providers.ts) implement production HTTPS webhook adapters with local outbox fallback in development; real inbox/SMS delivery requires configuring external SMTP/SMS webhook credentials. |
-| Signature-Based WAF Scope | Gateway WAF inspects URI-decoded SQLi, XSS, and path-traversal signatures effectively for REST JSON APIs, but is not a full OWASP ModSecurity CRS behavioral anomaly engine. |
+| Signature-Based WAF Scope | Gateway WAF inspects multi-decoded SQLi, XSS, and path-traversal signatures effectively for REST JSON APIs, but is not a full OWASP ModSecurity CRS behavioral anomaly engine. |
 | Single-Region Persistence | Docker Compose deploys single-primary PostgreSQL 15 and Redis 7 instances; active-active multi-region replication and automated failover are outside current scope. |
 | Protocol Coverage | Gateway proxying and API Studio target HTTP/1.1 REST/JSON workloads; gRPC (HTTP/2 trailers) and GraphQL AST depth limiting are not currently implemented. |
 | In-Memory Sandbox Mode | When DATABASE_URL or REDIS_URL are omitted in local demos, pg-mem and local rate-limit fallbacks do not persist across process restarts; production deployments must set STRICT_PERSISTENT_DB=true. |

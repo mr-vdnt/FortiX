@@ -24,6 +24,7 @@ RUN addgroup -S fortix && adduser -S fortix -G fortix && \
 COPY --from=builder --chown=fortix:fortix /app/package.json ./
 COPY --from=builder --chown=fortix:fortix /app/node_modules ./node_modules
 COPY --from=builder --chown=fortix:fortix /app/dist ./dist
+COPY --from=builder --chown=fortix:fortix /app/public ./public
 COPY --from=builder --chown=fortix:fortix /app/drizzle ./drizzle
 
 USER fortix

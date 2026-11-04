@@ -1,0 +1,16 @@
+WEBVTT
+
+00:00.000 --> 00:05.000
+Open Protected APIs to register an authorized upstream endpoint behind the FortiX Gateway.
+
+00:05.000 --> 00:10.000
+Define a clean route path pattern and public HTTPS target—private SSRF hosts are blocked automatically.
+
+00:10.000 --> 00:15.000
+Issue a project-scoped gateway API key and copy the one-time raw secret immediately.
+
+00:15.000 --> 00:20.000
+Open Security Policies and click Configure Route Policy to attach custom route controls.
+
+00:20.000 --> 00:25.000
+Enable SQLi/XSS WAF blocking, Deep Parameter SSRF Guard, and token-bucket rate limiting.
