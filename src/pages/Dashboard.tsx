@@ -32,6 +32,9 @@ export default function Dashboard() {
   const [loadError, setLoadError] = useState<{ message: string; requestId?: string } | null>(null);
   const [isProvisioningDemo, setIsProvisioningDemo] = useState(false);
   const [demoNotice, setDemoNotice] = useState('');
+  const [liveNow, setLiveNow] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  );
   const [onboardingOpen, setOnboardingOpen] = useState(() => {
     try {
       return localStorage.getItem('fortix_onboarding_collapsed') !== 'true';
@@ -105,7 +108,13 @@ export default function Dashboard() {
   useEffect(() => {
     fetchDashboardData(true);
     const interval = setInterval(() => fetchDashboardData(false), 4000);
-    return () => clearInterval(interval);
+    const clockInterval = setInterval(() => {
+      setLiveNow(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 1000);
+    return () => {
+      clearInterval(interval);
+      clearInterval(clockInterval);
+    };
   }, [fetchDashboardData]);
 
   const handleToggleOnboarding = () => {
@@ -149,9 +158,20 @@ export default function Dashboard() {
   const activeExp = experiments.find((e) => e.status === 'RUNNING' || e.status === 'ANALYZING');
   const completedExpCount = experiments.filter((e) => e.status === 'COMPLETED').length;
 
+  const formatBucketTime = (m: any) => {
+    const raw = m.isoTimestamp || m.timestamp;
+    if (raw) {
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    }
+    return String(m.timestamp || '');
+  };
+
   const chartData = metrics
     .map((m) => ({
-      time: m.timestamp,
+      time: formatBucketTime(m),
       latency: Number(m.latency) || 0,
       p50: Number(m.p50) || 0,
     }))
@@ -398,8 +418,14 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[300px]">
         <div className="bg-surface border border-subtle rounded-2xl flex flex-col overflow-hidden min-h-[280px]">
-          <div className="px-4 py-3 border-b border-subtle bg-card flex justify-between items-center">
-            <h2 className="text-xs font-semibold text-strong">Gateway Latency · P95 / P50 (ms)</h2>
+          <div className="px-4 py-3 border-b border-subtle bg-card flex flex-wrap justify-between items-center gap-2">
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-xs font-semibold text-strong">Gateway Latency · P95 / P50 (ms)</h2>
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-border/50 text-[10px] font-mono text-muted tabular-nums">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                LIVE · {liveNow}
+              </span>
+            </div>
             <span className="text-[11px] font-mono text-muted tabular-nums">
               {chartData.length} buckets
             </span>
@@ -431,10 +457,16 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={chartData}>
-                  <XAxis dataKey="time" hide />
-                  <YAxis stroke="#4A4A4C" tick={{ fill: '#8E8E93', fontSize: 10 }} />
+              <ResponsiveContainer width="100%" height={235}>
+                <LineChart data={chartData} margin={{ top: 8, right: 14, left: 0, bottom: 4 }}>
+                  <XAxis
+                    dataKey="time"
+                    stroke="#4A4A4C"
+                    tick={{ fill: '#8E8E93', fontSize: 10 }}
+                    tickLine={false}
+                    minTickGap={28}
+                  />
+                  <YAxis stroke="#4A4A4C" tick={{ fill: '#8E8E93', fontSize: 10 }} width={42} />
                   <Tooltip
                     contentStyle={{ backgroundColor: '#111113', borderColor: '#2A2A2C', color: '#E0E0E0' }}
                     itemStyle={{ color: '#F27D26' }}

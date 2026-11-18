@@ -249,7 +249,7 @@ export default function Verifications() {
   };
 
   return (
-    <div className="space-y-6 flex flex-col h-full max-w-6xl mx-auto w-full pb-10">
+    <div className="space-y-6 flex flex-col min-h-full max-w-6xl mx-auto w-full pb-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-subtle">
         <div className="flex items-center gap-3">
@@ -341,7 +341,7 @@ export default function Verifications() {
       </div>
 
       {/* AUTONOMOUS RUN LAUNCHER */}
-      <Card className="p-5 bg-surface border border-subtle">
+      <Card className="p-5 bg-surface border border-subtle shrink-0">
         <div className="flex items-center gap-2 mb-4">
           <Play size={18} className="text-primary" />
           <h3 className="text-sm font-bold uppercase tracking-wider text-strong">Launch Autonomous Verification Run</h3>
@@ -407,13 +407,13 @@ export default function Verifications() {
 
       {/* RUN DETAIL & TIMELINE */}
       {activeRun && (
-        <Card className="p-6 bg-surface border border-subtle relative overflow-hidden">
-          <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 border-b border-subtle gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-sm font-bold text-primary">{activeRun.id}</span>
+        <Card className="p-6 bg-surface border border-subtle relative shrink-0">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between pb-4 border-b border-subtle gap-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="font-mono text-sm font-bold text-primary break-all">{activeRun.id}</span>
                 <span
-                  className={`text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-md border ${
+                  className={`inline-flex items-center text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-md border whitespace-nowrap ${
                     activeRun.status === 'COMPLETED'
                       ? 'bg-green-500/10 border-green-500/30 text-green-400'
                       : activeRun.status === 'RUNNING' || activeRun.status === 'VERIFYING'
@@ -427,34 +427,34 @@ export default function Verifications() {
                 >
                   {activeRun.status}
                 </span>
-                <span className="text-xs text-muted uppercase font-semibold tracking-wider">
-                  Profile: {activeRun.profile}
+                <span className="inline-flex items-center text-xs text-muted uppercase font-semibold tracking-wider whitespace-nowrap">
+                  Profile: <span className="ml-1 text-base-text">{activeRun.profile}</span>
                 </span>
               </div>
-              <div className="text-xs text-muted mt-1 font-mono">
+              <div className="text-xs text-muted mt-1.5 font-mono break-all">
                 Target: {activeRun.params?.targetUrl} ({activeRun.params?.routePath}) | Cleanup:{' '}
                 <span className="text-green-400 font-bold">{activeRun.cleanupStatus}</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               {['QUEUED', 'RUNNING', 'VERIFYING'].includes(activeRun.status) && (
                 <button
                   onClick={() => handleCancelRun(activeRun.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold whitespace-nowrap"
                 >
                   <Ban size={14} /> Cancel Run
                 </button>
               )}
               <button
                 onClick={() => handleDownloadReport(activeRun.id, 'json')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-subtle bg-base hover:bg-hover text-xs font-medium text-base-text"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-subtle bg-base hover:bg-hover text-xs font-medium text-base-text whitespace-nowrap"
               >
                 <FileDown size={14} /> JSON Evidence
               </button>
               <button
                 onClick={() => handleDownloadReport(activeRun.id, 'pdf')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-semibold whitespace-nowrap"
               >
                 <FileDown size={14} /> PDF Report
               </button>
@@ -684,7 +684,7 @@ export default function Verifications() {
       )}
 
       {/* ALL WORKFLOW RUNS HISTORY */}
-      <Card className="p-5 bg-surface border border-subtle">
+      <Card className="p-5 bg-surface border border-subtle shrink-0">
         <h3 className="text-xs font-bold uppercase tracking-wider text-muted mb-4">Historical Verification Runs</h3>
         {runs.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted">

@@ -47,6 +47,7 @@ router.get('/', requireProjectOwnership, async (req, res) => {
 
         return {
           timestamp: new Date(timeKey).toLocaleTimeString(),
+          isoTimestamp: timeKey,
           latency: percentile(latencies, 0.95),
           p50: percentile(latencies, 0.50),
           errorRate: Math.round((errorCount / items.length) * 100),
