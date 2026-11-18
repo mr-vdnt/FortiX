@@ -48,6 +48,10 @@ playwright-report/
 .cache/
 docs/reports/.pdf-preview/
 
-# Test output traces (keep verified Vitest summary artifact)
+# Test output traces (keep verified Vitest summary artifact and sanitized report audit logs)
 test-results/*
 !test-results/vitest-summary.json
+!docs/reports/evidence-logs/
+!docs/reports/evidence-logs/*.log
+docs/reports/*_ORIGINAL_BACKUP.*
+

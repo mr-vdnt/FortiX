@@ -1,0 +1,17 @@
+node_modules
+.git
+.gitignore
+dist
+.aistudio
+playwright-report
+test-results
+storage
+reports
+docs
+scripts
+tests
+.env
+.env.*
+!.env.example
+*.log
+*.rdb

@@ -23,7 +23,16 @@ export default function Experiments() {
   const [dlqStats, setDlqStats] = useState<any>(null);
   const [expandedDlqJob, setExpandedDlqJob] = useState<string | null>(null);
   const [isDlqLoading, setIsDlqLoading] = useState(false);
+  const [dlqError, setDlqError] = useState<string | null>(null);
   const [confirmPurgeAll, setConfirmPurgeAll] = useState(false);
+
+  const mountedRef = React.useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -31,51 +40,69 @@ export default function Experiments() {
   };
 
   useEffect(() => {
-    fetchWithAuth('/api/control/routes').then(r => r.ok ? r.json() : []).then(data => {
-      setRoutes(data);
-      if (data.length > 0) setSelectedRouteId(data[0].id);
-    }).catch(() => {});
+    const controller = new AbortController();
+    fetchWithAuth('/api/control/routes', { signal: controller.signal })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => {
+        if (!mountedRef.current || controller.signal.aborted) return;
+        setRoutes(data);
+        if (data.length > 0) setSelectedRouteId(data[0].id);
+      })
+      .catch(() => {});
+    return () => controller.abort();
   }, [currentProject?.id]);
 
-  const fetchDlqData = async () => {
-    setIsDlqLoading(true);
+  const fetchDlqData = async (signal?: AbortSignal) => {
+    if (mountedRef.current) setIsDlqLoading(true);
     try {
       const [jobsRes, statsRes] = await Promise.all([
-        fetchWithAuth('/api/control/dlq'),
-        fetchWithAuth('/api/control/dlq/stats')
+        fetchWithAuth('/api/control/dlq', signal ? { signal } : {}),
+        fetchWithAuth('/api/control/dlq/stats', signal ? { signal } : {})
       ]);
+      if (!mountedRef.current || signal?.aborted) return;
       if (jobsRes.ok) {
         const jobsData = await jobsRes.json();
-        setDlqJobs(jobsData.jobs || []);
+        if (mountedRef.current) setDlqJobs(jobsData.jobs || []);
       }
       if (statsRes.ok) {
         const statsData = await statsRes.json();
-        setDlqStats(statsData);
+        if (mountedRef.current) setDlqStats(statsData);
       }
-    } catch (err) {
-      console.error('Failed to load DLQ data', err);
+      if (jobsRes.ok && statsRes.ok && mountedRef.current) {
+        setDlqError(null);
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || signal?.aborted || !mountedRef.current) {
+        return;
+      }
+      setDlqError('Unable to reach DLQ telemetry endpoint; retrying automatically.');
     } finally {
-      setIsDlqLoading(false);
+      if (mountedRef.current) setIsDlqLoading(false);
     }
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     const poll = async () => {
       try {
-        const r = await fetchWithAuth('/api/control/experiments');
-        if (r.ok) {
+        const r = await fetchWithAuth('/api/control/experiments', { signal: controller.signal });
+        if (r.ok && mountedRef.current && !controller.signal.aborted) {
           const data = await r.json();
           setExperiments(data);
         }
-      } catch (err) {}
+      } catch {}
     };
     poll();
-    fetchDlqData();
+    fetchDlqData(controller.signal);
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       poll();
-      fetchDlqData();
+      fetchDlqData(controller.signal);
     }, 4000);
-    return () => clearInterval(interval);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [currentProject?.id]);
 
   const triggerExperiment = async () => {
@@ -413,6 +440,17 @@ export default function Experiments() {
         {/* Tab 2: Dead-Letter Queue Inspection */}
         {activeTab === 'dlq' && (
           <div className="flex-1 flex flex-col">
+            {dlqError && (
+              <div className="mx-4 mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-3">
+                <span>{dlqError}</span>
+                <button
+                  onClick={() => fetchDlqData()}
+                  className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 font-semibold transition"
+                >
+                  Retry Now
+                </button>
+              </div>
+            )}
             {/* Queue Stats Bar */}
             {dlqStats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-elevated border-b border-subtle text-xs">
