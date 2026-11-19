@@ -197,10 +197,15 @@ export default function App() {
       setCurrentUser(null);
       setIsAuthenticated(false);
     };
+    const handleUserUpdated = () => {
+      void loadAuthenticatedUser();
+    };
     window.addEventListener('fortix:auth-unauthorized', handleUnauthorized);
+    window.addEventListener('fortix:user-updated', handleUserUpdated);
     return () => {
       if (guardTimer) clearTimeout(guardTimer);
       window.removeEventListener('fortix:auth-unauthorized', handleUnauthorized);
+      window.removeEventListener('fortix:user-updated', handleUserUpdated);
     };
   }, [loadAuthenticatedUser]);
 

@@ -341,8 +341,14 @@ export default function Settings() {
       if (res.ok) {
         if (data.devVerificationToken) {
           setDevVerificationHint(data.devVerificationToken);
+          setVerificationTokenInput(data.devVerificationToken);
         }
-        setVerificationMsg({ type: 'success', text: data.message || 'Verification token sent.' });
+        setVerificationMsg({
+          type: 'success',
+          text: data.devVerificationToken
+            ? 'Sandbox verification token generated and prefilled below — click Verify Email to complete.'
+            : data.message || 'Verification token sent.',
+        });
       } else {
         setVerificationMsg({ type: 'error', text: data.error || 'Could not issue verification token.' });
       }
@@ -370,6 +376,7 @@ export default function Settings() {
         setVerificationTokenInput('');
         setDevVerificationHint('');
         setVerificationMsg({ type: 'success', text: 'Email address verified.' });
+        window.dispatchEvent(new CustomEvent('fortix:user-updated'));
       } else {
         setVerificationMsg({ type: 'error', text: data.error || 'Invalid or expired verification token.' });
       }
@@ -395,7 +402,15 @@ export default function Settings() {
       if (res.ok) {
         setPhoneChallengeId(data.challengeId || '');
         setDevPhoneOtpHint(data.devOtpCode || '');
-        setPhoneMsg({ type: 'success', text: data.message || 'Verification code sent.' });
+        if (data.devOtpCode) {
+          setPhoneOtpInput(data.devOtpCode);
+        }
+        setPhoneMsg({
+          type: 'success',
+          text: data.devOtpCode
+            ? `Sandbox SMS OTP generated for ${data.destinationMasked || data.phoneE164} and prefilled below — click Verify Phone to confirm.`
+            : data.message || 'Verification code sent.',
+        });
       } else {
         setPhoneMsg({ type: 'error', text: data.error || 'Unable to send phone verification code.' });
       }
@@ -426,6 +441,7 @@ export default function Settings() {
         setPhoneOtpInput('');
         setDevPhoneOtpHint('');
         setPhoneMsg({ type: 'success', text: 'Phone number verified for sign-in and SMS recovery.' });
+        window.dispatchEvent(new CustomEvent('fortix:user-updated'));
       } else {
         setPhoneMsg({ type: 'error', text: data.error || 'Invalid or expired phone verification code.' });
       }
@@ -658,7 +674,7 @@ export default function Settings() {
             <div className="space-y-6">
               <section className="bg-surface border border-subtle rounded-xl p-6 space-y-4">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-strong">Account Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
                   <div className="p-3 bg-base border border-subtle rounded-lg">
                     <span className="text-muted block uppercase tracking-wider mb-1">Email</span>
                     <strong className="text-strong text-sm break-all">{user?.email}</strong>
@@ -671,6 +687,12 @@ export default function Settings() {
                     <span className="text-muted block uppercase tracking-wider mb-1">Email Status</span>
                     <strong className={`text-sm font-bold ${user?.emailVerified ? 'text-emerald-400' : 'text-amber-400'}`}>
                       {user?.emailVerified ? 'Verified' : 'Unverified'}
+                    </strong>
+                  </div>
+                  <div className="p-3 bg-base border border-subtle rounded-lg">
+                    <span className="text-muted block uppercase tracking-wider mb-1">Phone Status</span>
+                    <strong className={`text-sm font-bold ${user?.phoneVerified ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {user?.phoneVerified ? 'Verified' : user?.phoneE164 ? 'Unverified' : 'Not Set'}
                     </strong>
                   </div>
                   <div className="p-3 bg-base border border-subtle rounded-lg">
@@ -704,7 +726,7 @@ export default function Settings() {
 
                     {devVerificationHint && (
                       <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1.5">
-                        <div className="font-semibold text-amber-400">Local Dev Outbox Token</div>
+                        <div className="font-semibold text-amber-400">Sandbox Verification Outbox Token</div>
                         <div className="font-mono text-[11px] text-strong break-all">{devVerificationHint}</div>
                         <button
                           type="button"
@@ -742,7 +764,7 @@ export default function Settings() {
                         Phone Number &amp; SMS Recovery ({user?.phoneVerified ? 'Verified' : 'Unverified'})
                       </div>
                       <p className="text-xs text-muted">
-                        Enroll and verify an E.164 phone number to enable phone sign-in and SMS OTP account recovery.
+                        Enroll and verify an E.164 phone number (include country code with +, e.g. <span className="font-mono">+919876543210</span>) to enable phone sign-in and SMS OTP recovery.
                       </p>
                     </div>
                     {user?.phoneE164 && user?.phoneVerified && (
@@ -783,7 +805,7 @@ export default function Settings() {
 
                   {devPhoneOtpHint && (
                     <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
-                      <div className="font-semibold text-amber-400">Local Dev SMS Outbox (non-production)</div>
+                      <div className="font-semibold text-amber-400">Sandbox SMS Outbox Code</div>
                       <div className="font-mono text-sm text-strong tracking-widest">{devPhoneOtpHint}</div>
                       <button
                         type="button"

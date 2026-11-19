@@ -5,7 +5,13 @@ export type DeliveryChannel = 'EMAIL' | 'SMS';
 export interface NotificationDeliveryResult {
   delivered: boolean;
   channel: DeliveryChannel;
-  provider: 'webhook-email' | 'webhook-sms' | 'dev-sandbox-outbox' | 'unconfigured';
+  provider:
+    | 'webhook-email'
+    | 'webhook-sms'
+    | 'resend-email'
+    | 'twilio-sms'
+    | 'dev-sandbox-outbox'
+    | 'unconfigured';
   statusCode?: number;
   errorCode?: string;
 }
@@ -148,6 +154,66 @@ export class WebhookEmailDeliveryProvider implements EmailDeliveryProvider {
   }
 }
 
+export class ResendEmailDeliveryProvider implements EmailDeliveryProvider {
+  constructor(
+    private readonly apiKey: string,
+    private readonly fromAddress: string
+  ) {}
+
+  async send(message: EmailMessagePayload): Promise<NotificationDeliveryResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+    try {
+      const label =
+        message.purpose === 'EMAIL_VERIFICATION' ? 'verification token' : 'verification code';
+      const resp = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify({
+          from: this.fromAddress,
+          to: [message.to],
+          subject: message.subject,
+          text: `Your FortiX ${label} is: ${message.codeOrToken}\n\nExpires at: ${message.expiresAt.toISOString()}`,
+        }),
+      });
+
+      if (!resp.ok) {
+        logger.error(
+          { purpose: message.purpose, statusCode: resp.status },
+          '[AuthDelivery] Resend API returned non-2xx status'
+        );
+        return {
+          delivered: false,
+          channel: 'EMAIL',
+          provider: 'resend-email',
+          statusCode: resp.status,
+          errorCode: `RESEND_HTTP_${resp.status}`,
+        };
+      }
+
+      return {
+        delivered: true,
+        channel: 'EMAIL',
+        provider: 'resend-email',
+        statusCode: resp.status,
+      };
+    } catch (err: any) {
+      return {
+        delivered: false,
+        channel: 'EMAIL',
+        provider: 'resend-email',
+        errorCode: err?.name === 'AbortError' ? 'RESEND_TIMEOUT' : 'RESEND_TRANSPORT_ERROR',
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
 export class WebhookSmsDeliveryProvider implements SmsDeliveryProvider {
   constructor(
     private readonly webhookUrl: string,
@@ -216,12 +282,84 @@ export class WebhookSmsDeliveryProvider implements SmsDeliveryProvider {
   }
 }
 
+export class TwilioSmsDeliveryProvider implements SmsDeliveryProvider {
+  constructor(
+    private readonly accountSid: string,
+    private readonly authToken: string,
+    private readonly fromNumber: string
+  ) {}
+
+  async send(message: SmsMessagePayload): Promise<NotificationDeliveryResult> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+    try {
+      const credentials = Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64');
+      const form = new URLSearchParams({
+        To: message.toPhoneE164,
+        From: this.fromNumber,
+        Body: `Your FortiX verification code is ${message.otpCode}. It expires in 10 minutes.`,
+      });
+
+      const resp = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(this.accountSid)}/Messages.json`,
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Authorization: `Basic ${credentials}`,
+          },
+          body: form.toString(),
+        }
+      );
+
+      if (!resp.ok) {
+        logger.error(
+          { purpose: message.purpose, statusCode: resp.status },
+          '[AuthDelivery] Twilio SMS API returned non-2xx status'
+        );
+        return {
+          delivered: false,
+          channel: 'SMS',
+          provider: 'twilio-sms',
+          statusCode: resp.status,
+          errorCode: `TWILIO_HTTP_${resp.status}`,
+        };
+      }
+
+      return {
+        delivered: true,
+        channel: 'SMS',
+        provider: 'twilio-sms',
+        statusCode: resp.status,
+      };
+    } catch (err: any) {
+      return {
+        delivered: false,
+        channel: 'SMS',
+        provider: 'twilio-sms',
+        errorCode: err?.name === 'AbortError' ? 'TWILIO_TIMEOUT' : 'TWILIO_TRANSPORT_ERROR',
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+function isSandboxDeliveryDisallowedInProduction(): boolean {
+  return (
+    process.env.NODE_ENV === 'production' &&
+    (process.env.STRICT_PRODUCTION_SECRETS === 'true' ||
+      process.env.ALLOW_SANDBOX_AUTH_DELIVERY === 'false')
+  );
+}
+
 class DevSandboxEmailProvider implements EmailDeliveryProvider {
   async send(message: EmailMessagePayload): Promise<NotificationDeliveryResult> {
-    if (process.env.NODE_ENV === 'production') {
+    if (isSandboxDeliveryDisallowedInProduction()) {
       logger.error(
         { purpose: message.purpose },
-        '[AuthDelivery] AUTH_MAIL_WEBHOOK_URL is not configured in production'
+        '[AuthDelivery] AUTH_MAIL_WEBHOOK_URL or RESEND_API_KEY is not configured in strict production mode'
       );
       return {
         delivered: false,
@@ -250,10 +388,10 @@ class DevSandboxEmailProvider implements EmailDeliveryProvider {
 
 class DevSandboxSmsProvider implements SmsDeliveryProvider {
   async send(message: SmsMessagePayload): Promise<NotificationDeliveryResult> {
-    if (process.env.NODE_ENV === 'production') {
+    if (isSandboxDeliveryDisallowedInProduction()) {
       logger.error(
         { purpose: message.purpose },
-        '[AuthDelivery] AUTH_SMS_WEBHOOK_URL is not configured in production'
+        '[AuthDelivery] AUTH_SMS_WEBHOOK_URL or Twilio credentials are not configured in strict production mode'
       );
       return {
         delivered: false,
@@ -297,6 +435,11 @@ export function resolveEmailDeliveryProvider(): EmailDeliveryProvider {
   if (mailWebhookUrl) {
     return new WebhookEmailDeliveryProvider(mailWebhookUrl, process.env.AUTH_MAIL_WEBHOOK_SECRET);
   }
+  const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
+  if (resendApiKey) {
+    const fromAddr = (process.env.AUTH_MAIL_FROM || '').trim() || 'FortiX Security <onboarding@resend.dev>';
+    return new ResendEmailDeliveryProvider(resendApiKey, fromAddr);
+  }
   return new DevSandboxEmailProvider();
 }
 
@@ -305,6 +448,12 @@ export function resolveSmsDeliveryProvider(): SmsDeliveryProvider {
   const smsWebhookUrl = (process.env.AUTH_SMS_WEBHOOK_URL || '').trim();
   if (smsWebhookUrl) {
     return new WebhookSmsDeliveryProvider(smsWebhookUrl, process.env.AUTH_SMS_WEBHOOK_SECRET);
+  }
+  const twilioSid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
+  const twilioToken = (process.env.TWILIO_AUTH_TOKEN || '').trim();
+  const twilioFrom = (process.env.TWILIO_FROM_NUMBER || '').trim();
+  if (twilioSid && twilioToken && twilioFrom) {
+    return new TwilioSmsDeliveryProvider(twilioSid, twilioToken, twilioFrom);
   }
   return new DevSandboxSmsProvider();
 }

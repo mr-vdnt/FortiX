@@ -519,4 +519,157 @@ describe('FTX-AUTH-001: Authentication, Remember-Me Sessions & Account Recovery'
       .set('Authorization', `Bearer ${shortLogin.body.token}`);
     expect(afterRevokeMe.status).toBe(401);
   });
+
+  it('001E: supports authenticated sandbox email & phone verification in non-strict production, never leaks unauthenticated reset codes in production, and fails closed under STRICT_PRODUCTION_SECRETS=true', async () => {
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevStrict = process.env.STRICT_PRODUCTION_SECRETS;
+    const prevAllowSandbox = process.env.ALLOW_SANDBOX_AUTH_DELIVERY;
+    const prevOtpHmac = process.env.OTP_HMAC_SECRET;
+    const prevMailWebhook = process.env.AUTH_MAIL_WEBHOOK_URL;
+    const prevSmsWebhook = process.env.AUTH_SMS_WEBHOOK_URL;
+    const prevResend = process.env.RESEND_API_KEY;
+    const prevTwilioSid = process.env.TWILIO_ACCOUNT_SID;
+
+    const email = `prod-sandbox-${Date.now()}@fortix.test`;
+    const password = 'ProdSandboxPass!123';
+    const uniqueDigits = String(Date.now() + 91).slice(-9);
+    const phone = `+917${uniqueDigits}`;
+
+    const reg = await request(app)
+      .post('/api/auth/register')
+      .send({ email, password });
+    expect(reg.status).toBe(201);
+    createdUserIds.push(reg.body.user.id);
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: email, password });
+    expect(loginRes.status).toBe(200);
+    const jwtToken = loginRes.body.token as string;
+
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.STRICT_PRODUCTION_SECRETS;
+      delete process.env.ALLOW_SANDBOX_AUTH_DELIVERY;
+      delete process.env.AUTH_MAIL_WEBHOOK_URL;
+      delete process.env.AUTH_SMS_WEBHOOK_URL;
+      delete process.env.RESEND_API_KEY;
+      delete process.env.TWILIO_ACCOUNT_SID;
+
+      // 1. Authenticated email verification works in non-strict production
+      const resendEmailRes = await request(app)
+        .post('/api/auth/resend-verification')
+        .set('Authorization', `Bearer ${jwtToken}`);
+      expect(resendEmailRes.status).toBe(200);
+      expect(resendEmailRes.body.deliveryMode).toBe('sandbox-outbox');
+      expect(resendEmailRes.body.devVerificationToken).toMatch(/^[a-f0-9]{64}$/);
+
+      const verifyEmailRes = await request(app)
+        .post('/api/auth/verify-email')
+        .send({ token: resendEmailRes.body.devVerificationToken });
+      expect(verifyEmailRes.status).toBe(200);
+      expect(verifyEmailRes.body.verified).toBe(true);
+
+      // 2. Authenticated phone verification works in non-strict production and unlocks phone sign-in
+      const phoneReqRes = await request(app)
+        .post('/api/auth/phone/request-verify')
+        .set('Authorization', `Bearer ${jwtToken}`)
+        .send({ phone });
+      expect(phoneReqRes.status).toBe(200);
+      expect(phoneReqRes.body.deliveryMode).toBe('sandbox-outbox');
+      expect(phoneReqRes.body.devOtpCode).toMatch(/^\d{6}$/);
+
+      const phoneConfirmRes = await request(app)
+        .post('/api/auth/phone/confirm-verify')
+        .set('Authorization', `Bearer ${jwtToken}`)
+        .send({ challengeId: phoneReqRes.body.challengeId, otp: phoneReqRes.body.devOtpCode });
+      expect(phoneConfirmRes.status).toBe(200);
+      expect(phoneConfirmRes.body.phoneVerified).toBe(true);
+
+      const meRes = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${jwtToken}`);
+      expect(meRes.status).toBe(200);
+      expect(meRes.body.user.emailVerified).toBe(true);
+      expect(meRes.body.user.phoneVerified).toBe(true);
+      expect(meRes.body.user.phoneE164).toBe(phone);
+
+      const phoneLoginRes = await request(app)
+        .post('/api/auth/login')
+        .send({ identifier: phone, password });
+      expect(phoneLoginRes.status).toBe(200);
+
+      // 3. Unauthenticated forgot-password NEVER exposes devOtpCode or devResetToken in production
+      const forgotEmailRes = await request(app)
+        .post('/api/auth/forgot-password')
+        .send({ email });
+      expect(forgotEmailRes.status).toBe(200);
+      expect(forgotEmailRes.body.devOtpCode).toBeUndefined();
+      expect(forgotEmailRes.body.devResetToken).toBeUndefined();
+
+      // 4. Strict production mode & ALLOW_SANDBOX_AUTH_DELIVERY=false fail closed (503) without external providers
+      const secondEmail = `strict-prod-${Date.now()}@fortix.test`;
+      process.env.NODE_ENV = 'test';
+      const strictReg = await request(app)
+        .post('/api/auth/register')
+        .send({ email: secondEmail, password });
+      expect(strictReg.status).toBe(201);
+      createdUserIds.push(strictReg.body.user.id);
+      const strictLogin = await request(app)
+        .post('/api/auth/login')
+        .send({ identifier: secondEmail, password });
+      const strictToken = strictLogin.body.token as string;
+
+      process.env.NODE_ENV = 'production';
+      process.env.STRICT_PRODUCTION_SECRETS = 'true';
+      process.env.OTP_HMAC_SECRET = 'test-strict-otp-hmac-secret-minimum-32-chars';
+
+      const strictEmailResend = await request(app)
+        .post('/api/auth/resend-verification')
+        .set('Authorization', `Bearer ${strictToken}`);
+      expect(strictEmailResend.status).toBe(503);
+      expect(strictEmailResend.body.code).toBe('EMAIL_DELIVERY_FAILED');
+
+      const strictPhoneReq = await request(app)
+        .post('/api/auth/phone/request-verify')
+        .set('Authorization', `Bearer ${strictToken}`)
+        .send({ phone: `+916${String(Date.now() + 99).slice(-9)}` });
+      expect(strictPhoneReq.status).toBe(503);
+      expect(strictPhoneReq.body.code).toBe('SMS_DELIVERY_FAILED');
+
+      delete process.env.STRICT_PRODUCTION_SECRETS;
+      process.env.ALLOW_SANDBOX_AUTH_DELIVERY = 'false';
+
+      const disabledSandboxEmail = await request(app)
+        .post('/api/auth/resend-verification')
+        .set('Authorization', `Bearer ${strictToken}`);
+      expect(disabledSandboxEmail.status).toBe(503);
+      expect(disabledSandboxEmail.body.code).toBe('EMAIL_DELIVERY_FAILED');
+    } finally {
+      if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = prevNodeEnv;
+
+      if (prevStrict === undefined) delete process.env.STRICT_PRODUCTION_SECRETS;
+      else process.env.STRICT_PRODUCTION_SECRETS = prevStrict;
+
+      if (prevAllowSandbox === undefined) delete process.env.ALLOW_SANDBOX_AUTH_DELIVERY;
+      else process.env.ALLOW_SANDBOX_AUTH_DELIVERY = prevAllowSandbox;
+
+      if (prevOtpHmac === undefined) delete process.env.OTP_HMAC_SECRET;
+      else process.env.OTP_HMAC_SECRET = prevOtpHmac;
+
+      if (prevMailWebhook === undefined) delete process.env.AUTH_MAIL_WEBHOOK_URL;
+      else process.env.AUTH_MAIL_WEBHOOK_URL = prevMailWebhook;
+
+      if (prevSmsWebhook === undefined) delete process.env.AUTH_SMS_WEBHOOK_URL;
+      else process.env.AUTH_SMS_WEBHOOK_URL = prevSmsWebhook;
+
+      if (prevResend === undefined) delete process.env.RESEND_API_KEY;
+      else process.env.RESEND_API_KEY = prevResend;
+
+      if (prevTwilioSid === undefined) delete process.env.TWILIO_ACCOUNT_SID;
+      else process.env.TWILIO_ACCOUNT_SID = prevTwilioSid;
+    }
+  });
 });
+

@@ -86,7 +86,12 @@ function Layout({
           setVerifyTokenInput(data.devVerificationToken);
         }
         setVerifyOpen(true);
-        setVerifyFeedback({ type: 'ok', text: data.message || 'Verification token generated.' });
+        setVerifyFeedback({
+          type: 'ok',
+          text: data.devVerificationToken
+            ? 'Sandbox verification token generated & prefilled — click Confirm to verify your email.'
+            : data.message || 'Verification token dispatched. Paste the token from your inbox above.',
+        });
       } else {
         setVerifyFeedback({ type: 'err', text: data.error || 'Unable to generate verification token.' });
       }
@@ -190,7 +195,6 @@ function Layout({
             {verifyFeedback && (
               <div className={`w-full text-[11px] ${verifyFeedback.type === 'err' ? 'text-red-300' : 'text-emerald-300'}`}>
                 {verifyFeedback.text}
-                {devVerifyToken ? ' (Dev sandbox token prefilled above)' : ''}
               </div>
             )}
           </div>

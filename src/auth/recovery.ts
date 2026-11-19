@@ -795,7 +795,15 @@ export async function requestPhoneEnrollmentOtp(params: {
   phoneInput: string;
   ip?: string;
 }): Promise<
-  | { ok: true; challengeId: string; phoneE164: string; destinationMasked: string; expiresInSeconds: number; devOtpCode?: string }
+  | {
+      ok: true;
+      challengeId: string;
+      phoneE164: string;
+      destinationMasked: string;
+      expiresInSeconds: number;
+      deliveryMode: 'sandbox-outbox' | 'external-provider';
+      devOtpCode?: string;
+    }
   | { ok: false; status: number; error: string; code: string }
 > {
   const normalizedPhone = normalizePhoneE164(params.phoneInput);
@@ -894,9 +902,11 @@ export async function requestPhoneEnrollmentOtp(params: {
     };
   }
 
+  const isSandboxOutbox = delivery.provider === 'dev-sandbox-outbox';
   const exposeDevOtp =
-    delivery.provider === 'dev-sandbox-outbox' &&
-    process.env.NODE_ENV !== 'production' &&
+    isSandboxOutbox &&
+    process.env.STRICT_PRODUCTION_SECRETS !== 'true' &&
+    process.env.ALLOW_SANDBOX_AUTH_DELIVERY !== 'false' &&
     process.env.EXPOSE_DEV_AUTH_TOKENS !== 'false';
 
   return {
@@ -905,6 +915,7 @@ export async function requestPhoneEnrollmentOtp(params: {
     phoneE164: normalizedPhone,
     destinationMasked: masked,
     expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
+    deliveryMode: isSandboxOutbox ? 'sandbox-outbox' : 'external-provider',
     ...(exposeDevOtp ? { devOtpCode: rawOtp } : {}),
   };
 }

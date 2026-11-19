@@ -659,11 +659,15 @@ router.post('/phone/request-verify', async (req, res) => {
     }
 
     res.status(200).json({
-      message: `Verification code sent to ${outcome.destinationMasked}.`,
+      message:
+        outcome.deliveryMode === 'sandbox-outbox'
+          ? `Sandbox SMS verification code generated for ${outcome.destinationMasked}.`
+          : `Verification code sent to ${outcome.destinationMasked}.`,
       challengeId: outcome.challengeId,
       phoneE164: outcome.phoneE164,
       destinationMasked: outcome.destinationMasked,
       expiresInSeconds: outcome.expiresInSeconds,
+      deliveryMode: outcome.deliveryMode,
       ...(outcome.devOtpCode ? { devOtpCode: outcome.devOtpCode } : {}),
     });
   } catch (error) {
@@ -759,11 +763,19 @@ router.post('/resend-verification', async (req, res) => {
       });
     }
 
+    const isSandboxOutbox = issued.delivery?.provider === 'dev-sandbox-outbox';
+    const exposeSandboxToken =
+      isSandboxOutbox &&
+      process.env.STRICT_PRODUCTION_SECRETS !== 'true' &&
+      process.env.ALLOW_SANDBOX_AUTH_DELIVERY !== 'false' &&
+      process.env.EXPOSE_DEV_AUTH_TOKENS !== 'false';
+
     res.status(200).json({
-      message: 'Verification token dispatched.',
-      ...(process.env.NODE_ENV !== 'production' && process.env.EXPOSE_DEV_AUTH_TOKENS !== 'false'
-        ? { devVerificationToken: issued.rawToken }
-        : {}),
+      message: isSandboxOutbox
+        ? 'Verification token generated (sandbox outbox mode).'
+        : 'Verification token dispatched to your email.',
+      deliveryMode: isSandboxOutbox ? 'sandbox-outbox' : 'external-provider',
+      ...(exposeSandboxToken ? { devVerificationToken: issued.rawToken } : {}),
     });
   } catch {
     res.status(500).json({ error: 'Internal server error' });
