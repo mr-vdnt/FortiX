@@ -10,6 +10,7 @@ import {
   AlertCircle,
   ArrowRight,
   LogOut,
+  Database,
 } from 'lucide-react';
 import { setCsrfToken, setMemorySessionToken } from '../lib/api.js';
 
@@ -17,12 +18,14 @@ export function Login({
   onLogin,
   initialMode = 'login',
   activeUser,
+  isEphemeralSandbox = false,
   onContinueSession,
   onSignOutCurrent,
 }: {
   onLogin: () => Promise<void> | void;
   initialMode?: 'login' | 'register';
   activeUser?: { email: string; role: string } | null;
+  isEphemeralSandbox?: boolean;
   onContinueSession?: () => void;
   onSignOutCurrent?: () => Promise<void> | void;
 }) {
@@ -75,6 +78,7 @@ export function Login({
 
     setIsSubmitting(true);
     try {
+      let loginIdentifier = normalizedIdentifier;
       if (mode === 'register') {
         const regRes = await fetch('/api/auth/register', {
           method: 'POST',
@@ -100,6 +104,11 @@ export function Login({
           triggerShake();
           return;
         }
+
+        const regData = await regRes.json().catch(() => ({}));
+        if (typeof regData?.user?.email === 'string' && regData.user.email) {
+          loginIdentifier = regData.user.email;
+        }
       }
 
       // IMPORTANT: Never store passwords in localStorage, sessionStorage, or cookies.
@@ -109,7 +118,7 @@ export function Login({
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'browser' },
         body: JSON.stringify({
-          identifier: normalizedIdentifier,
+          identifier: loginIdentifier,
           password,
           rememberMe,
         }),
@@ -139,7 +148,7 @@ export function Login({
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Fortix-Client': 'iframe-memory' },
             body: JSON.stringify({
-              identifier: normalizedIdentifier,
+              identifier: loginIdentifier,
               password,
               rememberMe: false,
             }),
@@ -158,6 +167,14 @@ export function Login({
           setError(errPayload.error || 'Too many login attempts. Please wait 1 minute before retrying.');
         } else if (res.status === 400) {
           setError(errPayload.error || 'Enter a valid email address or E.164 phone number.');
+        } else if (!loginIdentifier.includes('@')) {
+          setError(
+            'Invalid credentials. Phone sign-in requires verifying your phone number in Settings → Account first — sign in with your email address instead.'
+          );
+        } else if (isEphemeralSandbox) {
+          setError(
+            'Invalid credentials. This instance is running in Sandbox In-Memory mode, so accounts created before a server restart or redeploy are cleared — create a new account or configure DATABASE_URL.'
+          );
         } else {
           setError('Invalid credentials. Verify your email or verified phone number and password.');
         }
@@ -279,6 +296,15 @@ export function Login({
               </p>
             </div>
 
+            {isEphemeralSandbox && (
+              <div className="mb-4 flex items-start gap-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3.5 py-2.5 text-[11px] text-amber-200 leading-relaxed">
+                <Database size={14} className="text-amber-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Sandbox In-Memory Storage:</strong> Accounts live in server RAM and reset whenever the server restarts or redeploys. Set <code className="font-mono text-amber-100">DATABASE_URL</code> for persistent accounts.
+                </span>
+              </div>
+            )}
+
             {error && (
               <div
                 role="alert"
@@ -350,6 +376,9 @@ export function Login({
                       className="w-full rounded-xl bg-[#0a0c13] border border-white/20 pl-10 pr-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/25 transition-colors"
                     />
                   </div>
+                  <p className="text-[11px] text-zinc-400 mt-1.5 leading-relaxed">
+                    Phone sign-in stays inactive until verified via SMS OTP in Settings → Account; use your email to sign in until verified.
+                  </p>
                 </div>
               )}
 

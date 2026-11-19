@@ -91,6 +91,7 @@ function AuthPageWrapper({
       <Login
         initialMode={initialMode}
         activeUser={activeUser}
+        isEphemeralSandbox={Boolean(healthStatus && healthStatus.postgresStorageMode === 'in-memory')}
         onContinueSession={activeUser ? () => navigate('/') : undefined}
         onSignOutCurrent={activeUser ? onLogout : undefined}
         onLogin={handleLoginSuccess}
